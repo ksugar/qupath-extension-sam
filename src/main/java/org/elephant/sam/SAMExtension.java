@@ -25,7 +25,9 @@ import qupath.lib.gui.ActionTools.ActionMenu;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.extensions.QuPathExtension;
+import qupath.lib.gui.images.servers.RenderedImageServer;
 import qupath.lib.gui.prefs.PathPrefs;
+import qupath.lib.images.servers.ImageServer;
 import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjects;
@@ -146,7 +148,12 @@ public class SAMExtension implements QuPathExtension {
 					
 					BufferedImage bufferedImage = null;
 					try {
-						bufferedImage = qupath.getImageData().getServer().readRegion(downsample, x1, y1, x2 - x1, y2 - y1);
+						final ImageServer<BufferedImage> renderedServer = new RenderedImageServer
+								.Builder(qupath.getViewer().getImageData())
+								.store(qupath.getViewer().getImageRegionStore())
+								.renderer(qupath.getViewer().getImageDisplay())
+								.build();
+						bufferedImage = renderedServer.readRegion(downsample, x1, y1, x2 - x1, y2 - y1);
 					} catch (IOException e) {
 						e.printStackTrace();
 						Dialogs.showErrorMessage(getName(), e);

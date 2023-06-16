@@ -32,6 +32,12 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 This command sends a request to http://localhost:8000 by default. The server URL can be set from `Extensions` > `SAM` > `Server URL`.
 
+## Updates
+
+- v0.2.0: Support any number of channels.
+
+![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-5channels-1080p.gif)
+
 ## Citation
 
 Please cite my paper on [bioRxiv](https://biorxiv.org/cgi/content/short/2023.06.13.544786v1).

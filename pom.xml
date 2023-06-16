@@ -4,7 +4,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.elephant</groupId>
 	<artifactId>qupath-extension-sam</artifactId>
-	<version>0.1.0</version>
+	<version>0.2.0</version>
 	<dependencies>
 		<dependency>
 			<groupId>io.github.qupath</groupId>

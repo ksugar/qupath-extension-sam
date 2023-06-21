@@ -1,5 +1,8 @@
 package org.elephant.sam;
 
+import javafx.beans.property.StringProperty;
+
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
@@ -34,8 +37,10 @@ import qupath.lib.objects.PathObjects;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent.HierarchyEventType;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
+import qupath.lib.regions.ImagePlane;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
+import qupath.lib.gui.panes.PreferencePane;
 
 public class SAMExtension implements QuPathExtension {
 	
@@ -52,7 +57,15 @@ public class SAMExtension implements QuPathExtension {
 	}
 
 	public void installExtension(QuPathGUI qupath) {
+		SAMSetup options = SAMSetup.getInstance();
+		StringProperty SAMurl = PathPrefs.createPersistentPreference("SAM URL", "http://localhost:8000/sam/");
+		options.setSAMUrl(SAMurl.get());
+		SAMurl.addListener((v, o, n) -> options.setSAMUrl(n));
 		qupath.installActions(ActionTools.getAnnotatedActions(new SAMCommands(qupath)));
+
+		PreferencePane prefs = QuPathGUI.getInstance().getPreferencePane();
+		prefs.addPropertyPreference(SAMurl, String.class, "SAM URL", "Segment Anything Model",
+				"Enter the URL to the uvicorn webserver running the SAMapi.");
 	}
 	
 	@ActionMenu("Extensions>SAM")
@@ -61,8 +74,6 @@ public class SAMExtension implements QuPathExtension {
 		private final QuPathGUI qupath;
 		
 		private String samType = SAM_TYPE_VIT_H;
-		
-		private String serverURL = "http://localhost:8000/sam/";
 		
 		@ActionMenu("Enable SAM>ViT-H")
 		@ActionDescription("Enable SegmentAnything Model (ViT-H).")
@@ -79,10 +90,6 @@ public class SAMExtension implements QuPathExtension {
 		@ActionMenu("Disable SAM")
 		@ActionDescription("Disable SegmentAnything Model.")
 		public final Action actionDisableSAM;
-		
-		@ActionMenu("Server URL")
-		@ActionDescription("Set API server URL.")
-		public final Action actionSetServerURL;
 		
 		private SAMCommands(QuPathGUI qupath) {
 			actionEnableSAMViTH = qupath.createImageDataAction(imageData -> {
@@ -106,12 +113,6 @@ public class SAMExtension implements QuPathExtension {
 			actionDisableSAM = qupath.createImageDataAction(imageData -> {
 				Dialogs.showMessageDialog("SAM", "SAM disabled");
 				qupath.getImageData().getHierarchy().removeListener(this);
-			});
-			actionSetServerURL = new Action(event -> {
-				String newURL = Dialogs.showInputDialog("Server URL", "Set API server URL", serverURL);
-				if (newURL != null) {
-					serverURL = newURL;
-				}
 			});
 			this.qupath = qupath;
 		}
@@ -145,7 +146,7 @@ public class SAMExtension implements QuPathExtension {
 					int y1 = Math.max(0, (int)(roi.getBoundsY() - roi.getBoundsHeight() * 2));
 					int x2 = Math.min(qupath.getImageData().getServer().getWidth() - 1, x1 + (int) roi.getBoundsWidth() * 5);
 					int y2 = Math.min(qupath.getImageData().getServer().getHeight() - 1, y1 + (int) roi.getBoundsHeight() * 5);
-					
+					ImagePlane currentplane = ImagePlane.getPlane(roi);
 					BufferedImage bufferedImage = null;
 					try {
 						final ImageServer<BufferedImage> renderedServer = new RenderedImageServer
@@ -153,7 +154,7 @@ public class SAMExtension implements QuPathExtension {
 								.store(qupath.getViewer().getImageRegionStore())
 								.renderer(qupath.getViewer().getImageDisplay())
 								.build();
-						bufferedImage = renderedServer.readRegion(downsample, x1, y1, x2 - x1, y2 - y1);
+						bufferedImage = renderedServer.readRegion(downsample, x1, y1, x2 - x1, y2 - y1, currentplane.getZ(), currentplane.getT());
 					} catch (IOException e) {
 						e.printStackTrace();
 						Dialogs.showErrorMessage(getName(), e);
@@ -172,10 +173,10 @@ public class SAMExtension implements QuPathExtension {
 
 					final Gson gson = GsonTools.getInstance();
 					final String body = gson.toJson(prompt);
-					
+					final SAMSetup samSetup = SAMSetup.getInstance();
 					final HttpRequest request = HttpRequest.newBuilder()
 					        .version(HttpClient.Version.HTTP_1_1)
-					        .uri(URI.create(serverURL))
+					        .uri(URI.create(samSetup.getSAMUrl()))
 					        .header("accept", "application/json")
 					        .header("Content-Type", "application/json; charset=utf-8")
 					        .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -187,7 +188,7 @@ public class SAMExtension implements QuPathExtension {
 							List<PathObject> samObjects = gson.fromJson(response.body(), type);
 				            for (PathObject samObject : samObjects) {
 				            	final PathObject scaledSamObject = PathObjects.createAnnotationObject(
-				            		samObject.getROI().scale(downsample, downsample).translate(x1, y1),
+				            		samObject.getROI().scale(downsample, downsample).translate(x1, y1).updatePlane(currentplane),
 				            		PathPrefs.autoSetAnnotationClassProperty().get()
 				            	);
 				                qupath.getImageData().getHierarchy().addObject(scaledSamObject);

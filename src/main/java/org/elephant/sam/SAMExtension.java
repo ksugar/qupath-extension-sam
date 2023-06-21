@@ -1,6 +1,8 @@
 package org.elephant.sam;
 
 import javafx.beans.property.StringProperty;
+
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
@@ -35,6 +37,7 @@ import qupath.lib.objects.PathObjects;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent.HierarchyEventType;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
+import qupath.lib.regions.ImagePlane;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.gui.panes.PreferencePane;
@@ -143,7 +146,7 @@ public class SAMExtension implements QuPathExtension {
 					int y1 = Math.max(0, (int)(roi.getBoundsY() - roi.getBoundsHeight() * 2));
 					int x2 = Math.min(qupath.getImageData().getServer().getWidth() - 1, x1 + (int) roi.getBoundsWidth() * 5);
 					int y2 = Math.min(qupath.getImageData().getServer().getHeight() - 1, y1 + (int) roi.getBoundsHeight() * 5);
-					
+					ImagePlane currentplane = ImagePlane.getPlane(roi);
 					BufferedImage bufferedImage = null;
 					try {
 						final ImageServer<BufferedImage> renderedServer = new RenderedImageServer
@@ -151,7 +154,7 @@ public class SAMExtension implements QuPathExtension {
 								.store(qupath.getViewer().getImageRegionStore())
 								.renderer(qupath.getViewer().getImageDisplay())
 								.build();
-						bufferedImage = renderedServer.readRegion(downsample, x1, y1, x2 - x1, y2 - y1);
+						bufferedImage = renderedServer.readRegion(downsample, x1, y1, x2 - x1, y2 - y1, currentplane.getZ(), currentplane.getT());
 					} catch (IOException e) {
 						e.printStackTrace();
 						Dialogs.showErrorMessage(getName(), e);
@@ -185,7 +188,7 @@ public class SAMExtension implements QuPathExtension {
 							List<PathObject> samObjects = gson.fromJson(response.body(), type);
 				            for (PathObject samObject : samObjects) {
 				            	final PathObject scaledSamObject = PathObjects.createAnnotationObject(
-				            		samObject.getROI().scale(downsample, downsample).translate(x1, y1),
+				            		samObject.getROI().scale(downsample, downsample).translate(x1, y1).updatePlane(currentplane),
 				            		PathPrefs.autoSetAnnotationClassProperty().get()
 				            	);
 				                qupath.getImageData().getHierarchy().addObject(scaledSamObject);

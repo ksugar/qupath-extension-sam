@@ -1,6 +1,8 @@
 target/
 .classpath
 .project
+.DS_Store
+build/
 
 ### Eclipse ###
 .metadata

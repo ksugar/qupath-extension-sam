@@ -14,6 +14,7 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
+import javafx.beans.property.StringProperty;
 import org.controlsfx.control.action.Action;
 
 import com.google.gson.Gson;
@@ -59,10 +60,11 @@ public class SAMExtension implements QuPathExtension {
 	public class SAMCommands implements PathObjectHierarchyListener {
 		
 		private final QuPathGUI qupath;
-		
+
+		private final StringProperty serverURL = PathPrefs.createPersistentPreference(
+				"ext.SAM.serverUrl", "http://localhost:8000/sam/");
+
 		private String samType = SAM_TYPE_VIT_H;
-		
-		private String serverURL = "http://localhost:8000/sam/";
 		
 		@ActionMenu("Enable SAM>ViT-H")
 		@ActionDescription("Enable SegmentAnything Model (ViT-H).")
@@ -108,9 +110,10 @@ public class SAMExtension implements QuPathExtension {
 				qupath.getImageData().getHierarchy().removeListener(this);
 			});
 			actionSetServerURL = new Action(event -> {
-				String newURL = Dialogs.showInputDialog("Server URL", "Set API server URL", serverURL);
+				String newURL = Dialogs.showInputDialog(
+						"Server URL", "Set API server URL", serverURL.get());
 				if (newURL != null) {
-					serverURL = newURL;
+					serverURL.set(newURL);
 				}
 			});
 			this.qupath = qupath;
@@ -175,7 +178,7 @@ public class SAMExtension implements QuPathExtension {
 					
 					final HttpRequest request = HttpRequest.newBuilder()
 					        .version(HttpClient.Version.HTTP_1_1)
-					        .uri(URI.create(serverURL))
+					        .uri(URI.create(serverURL.get()))
 					        .header("accept", "application/json")
 					        .header("Content-Type", "application/json; charset=utf-8")
 					        .POST(HttpRequest.BodyPublishers.ofString(body))

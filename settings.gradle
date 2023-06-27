@@ -9,7 +9,7 @@ pluginManagement {
 }
 
 // TODO: Name your QuPath extension here!
-rootProject.name = 'my-qupath-extension'
+rootProject.name = 'qupath-extension-sam'
 
 // TODO: Define the QuPath version compatible with the extension
 // Note that the QuPath API isn't stable; something designed for

@@ -32,10 +32,16 @@ public class SAMExtension implements QuPathExtension {
 		@ActionMenu("SAM command")
 		@ActionDescription("Launch Segment Anything command.")
 		public final Action actionSAMCommand;
+
+		@ActionMenu("SAM automask")
+		@ActionDescription("Launch Segment Anything AutoMask command.")
+		public final Action actionSAMAutoMaskCommand;
 		
 		private SAMCommands(QuPathGUI qupath) {
 			SAMCommand samCommand = new SAMCommand(qupath);
 			actionSAMCommand = new Action(event -> samCommand.run());
+			SAMAutoMaskCommand samAutoMaskCommand = new SAMAutoMaskCommand(qupath);
+			actionSAMAutoMaskCommand = new Action(event -> samAutoMaskCommand.run());
 			this.qupath = qupath;
 		}
 

@@ -1,6 +1,7 @@
 package org.elephant.sam;
 
 import com.google.gson.Gson;
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,18 +110,20 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         try {
             List<PathObject> detected = detectObjects();
             if (!detected.isEmpty()) {
-                PathObjectHierarchy hierarchy = imageData.getHierarchy();
-                if (!keepPromptObjects) {
-                    // Remove prompt objects in one step
-                    hierarchy.getSelectionModel().clearSelection();
-                    hierarchy.removeObjects(foregroundObjects, true);
+                Platform.runLater(() -> {
+                    PathObjectHierarchy hierarchy = imageData.getHierarchy();
+                    if (!keepPromptObjects) {
+                        // Remove prompt objects in one step
+                        hierarchy.getSelectionModel().clearSelection();
+                        hierarchy.removeObjects(foregroundObjects, true);
 //                    List<PathObject> toRemove = new ArrayList<>(foregroundObjects);
 //                    toRemove.addAll(backgroundObjects);
 //                    hierarchy.getSelectionModel().clearSelection();
 //                    hierarchy.removeObjects(toRemove, true);
-                }
-                hierarchy.addObjects(detected);
-                hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
+                    }
+                    hierarchy.addObjects(detected);
+                    hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
+                });
             } else {
                 logger.warn("No objects detected");
             }

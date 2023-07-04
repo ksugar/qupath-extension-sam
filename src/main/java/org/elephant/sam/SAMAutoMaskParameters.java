@@ -33,7 +33,11 @@ public class SAMAutoMaskParameters {
 	@SuppressWarnings("unused")
 	private int crop_n_points_downscale_factor;
 	@SuppressWarnings("unused")
-	private int minMaskRegionArea;
+	private int min_mask_region_area;
+	@SuppressWarnings("unused")
+	private String output_type;
+	@SuppressWarnings("unused")
+	private boolean include_image_edge;
 
 	private SAMAutoMaskParameters(final Builder builder) {
 		Objects.requireNonNull(builder.type, "Model type must be specified");
@@ -50,7 +54,9 @@ public class SAMAutoMaskParameters {
 		this.crop_nms_thresh = builder.cropNmsThresh;
 		this.crop_overlap_ratio = builder.cropOverlapRatio;
 		this.crop_n_points_downscale_factor = builder.cropNPointsDownscaleFactor;
-		this.minMaskRegionArea = builder.minMaskRegionArea;
+		this.min_mask_region_area = builder.minMaskRegionArea;
+		this.output_type = builder.outputType;
+		this.include_image_edge = builder.includeImageEdge;
 	}
 
 	/**
@@ -76,6 +82,8 @@ public class SAMAutoMaskParameters {
 		private double cropOverlapRatio;
 		private int cropNPointsDownscaleFactor;
 		private int minMaskRegionArea;
+		private String outputType;
+		private boolean includeImageEdge;
 
 		private Builder(final SAMModel model) {
 			this.type = model.modelName();
@@ -205,6 +213,26 @@ public class SAMAutoMaskParameters {
 		 */
 		public Builder minMaskRegionArea(final int minMaskRegionArea) {
 			this.minMaskRegionArea = minMaskRegionArea;
+			return this;
+		}
+
+		/**
+		 * How to deal with SAM masks.
+		 * @param outputType
+		 * @return this builder
+		 */
+		public Builder outputType(final String outputType) {
+			this.outputType = outputType;
+			return this;
+		}
+
+		/**
+		 * If specified, include image edge in SAM auto mask generator.
+		 * @param includeImageEdge
+		 * @return this builder
+		 */
+		public Builder includeImageEdge(final boolean includeImageEdge) {
+			this.includeImageEdge = includeImageEdge;
 			return this;
 		}
 

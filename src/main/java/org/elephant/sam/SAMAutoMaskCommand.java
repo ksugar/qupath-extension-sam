@@ -56,92 +56,121 @@ public class SAMAutoMaskCommand implements Runnable {
     /**
      * Selected model for SAM
      */
-    private final ObjectProperty<SAMModel> model = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.model", SAMModel.VIT_L, SAMModel.class);
+    private static final SAMModel DEFAULT_SAM_MODEL = SAMModel.VIT_T;
+    private final ObjectProperty<SAMModel> samModelProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.model", DEFAULT_SAM_MODEL, SAMModel.class);
 
     /**
      * Selected output type
      */
-    private final ObjectProperty<SAMOutput> outputType = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.outputType", SAMOutput.MULTI_ALL, SAMOutput.class);
+    private static final SAMOutput DEFAULT_OUTPUT_TYPE = SAMOutput.MULTI_SMALLEST;
+    private final ObjectProperty<SAMOutput> outputTypeProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.outputType", DEFAULT_OUTPUT_TYPE, SAMOutput.class);
 
     /**
      * Set the names of new SAM detected objects.
      */
-    private final BooleanProperty setNames = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.setNames", true);
+    private static final boolean DEFAULT_SET_NAMES = true;
+    private final BooleanProperty setNamesProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.setNames", DEFAULT_SET_NAMES);
 
     /**
      * Assign random colors to new SAM objects.
      */
-    private final BooleanProperty useRandomColors = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.useRandomColors", true);
+    private static final boolean DEFAULT_USE_RANDOM_COLORS = true;
+    private final BooleanProperty useRandomColorsProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.useRandomColors", DEFAULT_USE_RANDOM_COLORS);
+
+    /**
+     * Clear current objects.
+     */
+    private static final boolean DEFAULT_CLEAR_CURRENT_OBJECTS = true;
+    private final BooleanProperty clearCurrentObjectsProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.clearCurrentObjects", DEFAULT_CLEAR_CURRENT_OBJECTS);
 
     /**
      * Points per side parameter.
      */
+    private static final int DEFAULT_POINTS_PER_SIDE = 16;
     private final IntegerProperty pointsPerSideProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.pointsPerSide", 32);
+            "ext.SAM.autoMask.pointsPerSide", DEFAULT_POINTS_PER_SIDE);
 
     /**
      * Points per batch parameter.
      */
+    private static final int DEFAULT_POINTS_PER_BATCH = 64;
     private final IntegerProperty pointsPerBatchProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.pointsPerBatch", 64);
+            "ext.SAM.autoMask.pointsPerBatch", DEFAULT_POINTS_PER_BATCH);
 
     /**
      * Pred IoU thresh parameter.
      */
+    private static final double DEFAULT_PRED_IOU_THRESH = 0.88;
     private final DoubleProperty predIoUThreshProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.predIoUThresh", 0.88);
+            "ext.SAM.autoMask.predIoUThresh", DEFAULT_PRED_IOU_THRESH);
 
     /**
      * Stability score thresh parameter.
      */
+    private static final double DEFAULT_STABILITY_SCORE_THRESH = 0.95;
     private final DoubleProperty stabilityScoreThreshProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.stabilityScoreThresh", 0.95);
+            "ext.SAM.autoMask.stabilityScoreThresh", DEFAULT_STABILITY_SCORE_THRESH);
 
     /**
      * Stability score offset parameter.
      */
+    private static final double DEFAULT_STABILITY_SCORE_OFFSET = 1.0;
     private final DoubleProperty stabilityScoreOffsetProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.stabilityScoreOffset", 1.0);
+            "ext.SAM.autoMask.stabilityScoreOffset", DEFAULT_STABILITY_SCORE_OFFSET);
 
     /**
      * Box NMS thresh parameter.
      */
+    private static final double DEFAULT_BOX_NMS_THRESH = 0.2;
     private final DoubleProperty boxNmsThreshProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.boxNmsThresh", 0.7);
+            "ext.SAM.autoMask.boxNmsThresh", DEFAULT_BOX_NMS_THRESH);
 
     /**
      * Crop N layers parameter.
      */
+    private static final int DEFAULT_CROP_N_LAYERS = 0;
     private final IntegerProperty cropNLayersProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.cropNLayers", 0);
+            "ext.SAM.autoMask.cropNLayers", DEFAULT_CROP_N_LAYERS);
 
     /**
      * Crop NMS thresh parameter.
      */
+    private static final double DEFAULT_CROP_NMS_THRESH = 0.7;
     private final DoubleProperty cropNmsThreshProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.cropNmsThresh", 0.7);
+            "ext.SAM.autoMask.cropNmsThresh", DEFAULT_CROP_NMS_THRESH);
 
     /**
      * Crop overlap ratio parameter.
      */
+    private static final double DEFAULT_CROP_OVERLAP_RATIO = (double) 512 / 1500;
     private final DoubleProperty cropOverlapRatioProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.cropOverlapRatio", (double) 512 / 1500);
+            "ext.SAM.autoMask.cropOverlapRatio", DEFAULT_CROP_OVERLAP_RATIO);
 
     /**
      * Crop N points downscale factor parameter.
      */
+    private static final int DEFAULT_CROP_N_POINTS_DOWNSCALE_FACTOR = 1;
     private final IntegerProperty cropNPointsDownscaleFactorProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.cropNPointsDownscaleFactor", 1);
+            "ext.SAM.autoMask.cropNPointsDownscaleFactor", DEFAULT_CROP_N_POINTS_DOWNSCALE_FACTOR);
 
     /**
      * Min mask region area parameter.
      */
+    private static final int DEFAULT_MIN_MASK_REGION_AREA = 0;
     private final IntegerProperty minMaskRegionAreaProperty = PathPrefs.createPersistentPreference(
-            "ext.SAM.autoMask.minMaskRegionArea", 0);
+            "ext.SAM.autoMask.minMaskRegionArea", DEFAULT_MIN_MASK_REGION_AREA);
+
+    /**
+     * Include image edge.
+     */
+    private static final boolean DEFAULT_INCLUDE_IMAGE_EDGE = false;
+    private final BooleanProperty includeImageEdgeProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.includeImageEdge", DEFAULT_INCLUDE_IMAGE_EDGE);
 
     /**
      * Current image data
@@ -168,7 +197,7 @@ public class SAMAutoMaskCommand implements Runnable {
      */
     private final BooleanBinding disableRunning = imageDataProperty.isNull()
             .or(serverURL.isEmpty())
-            .or(model.isNull())
+            .or(samModelProperty.isNull())
             .or(isDetecting);
 
     private ExecutorService pool;
@@ -249,13 +278,35 @@ public class SAMAutoMaskCommand implements Runnable {
         }
         submitTask();
     }
+
+    private void resetParameters() {
+        samModelProperty.set(DEFAULT_SAM_MODEL);
+        outputTypeProperty.set(DEFAULT_OUTPUT_TYPE);
+        setNamesProperty.set(DEFAULT_SET_NAMES);
+        useRandomColorsProperty.set(DEFAULT_USE_RANDOM_COLORS);
+        clearCurrentObjectsProperty.set(DEFAULT_CLEAR_CURRENT_OBJECTS);
+        pointsPerSideProperty.set(DEFAULT_POINTS_PER_SIDE);
+        pointsPerBatchProperty.set(DEFAULT_POINTS_PER_BATCH);
+        predIoUThreshProperty.set(DEFAULT_PRED_IOU_THRESH);
+        stabilityScoreThreshProperty.set(DEFAULT_STABILITY_SCORE_THRESH);
+        stabilityScoreOffsetProperty.set(DEFAULT_STABILITY_SCORE_OFFSET);
+        boxNmsThreshProperty.set(DEFAULT_BOX_NMS_THRESH);
+        cropNLayersProperty.set(DEFAULT_CROP_N_LAYERS);
+        cropNmsThreshProperty.set(DEFAULT_CROP_NMS_THRESH);
+        cropOverlapRatioProperty.set(DEFAULT_CROP_OVERLAP_RATIO);
+        cropNPointsDownscaleFactorProperty.set(DEFAULT_CROP_N_POINTS_DOWNSCALE_FACTOR);
+        minMaskRegionAreaProperty.set(DEFAULT_MIN_MASK_REGION_AREA);
+        includeImageEdgeProperty.set(DEFAULT_INCLUDE_IMAGE_EDGE);
+    }
+
     private void submitTask() {
         SAMAutoMaskTask task = SAMAutoMaskTask.builder(qupath.getViewer())
                         .serverURL(serverURL.get())
-                        .model(model.get())
-                        .outputType(outputType.get())
-                        .setName(setNames.get())
-                        .setRandomColor(useRandomColors.get())
+                        .model(samModelProperty.get())
+                        .outputType(outputTypeProperty.get())
+                        .setName(setNamesProperty.get())
+                        .clearCurrentObjects(clearCurrentObjectsProperty.get())
+                        .setRandomColor(useRandomColorsProperty.get())
                         .pointsPerSide(pointsPerSideProperty.get())
                         .pointsPerBatch(pointsPerBatchProperty.get())
                         .predIoUThresh(predIoUThreshProperty.get())
@@ -267,6 +318,7 @@ public class SAMAutoMaskCommand implements Runnable {
                         .cropOverlapRatio(cropOverlapRatioProperty.get())
                         .cropNPointsDownscaleFactor(cropNPointsDownscaleFactorProperty.get())
                         .minMaskRegionArea(minMaskRegionAreaProperty.get())
+                        .includeImageEdge(includeImageEdgeProperty.get())
                         .build();
         pool.submit(task);
         currentTasks.add(task);
@@ -468,8 +520,8 @@ public class SAMAutoMaskCommand implements Runnable {
     private void addModelPrompt(GridPane pane, int row) {
         ComboBox<SAMModel> combo = new ComboBox<>();
         combo.getItems().setAll(SAMModel.values());
-        combo.getSelectionModel().select(model.get());
-        model.bind(combo.getSelectionModel().selectedItemProperty());
+        combo.getSelectionModel().select(samModelProperty.get());
+        combo.valueProperty().bindBidirectional(samModelProperty);
         combo.setMaxWidth(Double.MAX_VALUE);
         Tooltip tooltip = new Tooltip("The SAM model to use for detection.\n" +
                 "These differ in size and speed (and maybe accuracy)");
@@ -488,12 +540,12 @@ public class SAMAutoMaskCommand implements Runnable {
         SAMOutput[] samOutputs = Arrays.stream(SAMOutput.values())
                 .filter(v -> v != SAMOutput.SINGLE_MASK)
                 .toArray(SAMOutput[]::new);
-        combo.getItems().setAll(samOutputs);
-        combo.getSelectionModel().select(outputType.get());
+        combo.getItems().setAll(SAMOutput.values());
+        combo.getSelectionModel().select(outputTypeProperty.get());
         Tooltip tooltip = new Tooltip("Choose how many masks SAM should create (1 or 3).\n" +
                 "For multiple masks, you can specify which is kept.");
         combo.setTooltip(tooltip);
-        outputType.bind(combo.getSelectionModel().selectedItemProperty());
+        combo.valueProperty().bindBidirectional(outputTypeProperty);
         combo.setMaxWidth(Double.MAX_VALUE);
         GridPane.setFillWidth(combo, true);
 
@@ -506,19 +558,31 @@ public class SAMAutoMaskCommand implements Runnable {
 
     private void addCheckboxes(GridPane pane, int row) {
         CheckBox cbRandomColors = createCheckbox("Assign random colors",
-                useRandomColors,
+                useRandomColorsProperty,
                 "Assign random colors to new (unclassified) objects created by SAM");
 
         CheckBox cbAssignNames = createCheckbox("Assign names",
-                setNames,
+                setNamesProperty,
                 "Assign names to identify new objects as created by SAM, including quality scores");
+
+        CheckBox cbClearCurrentObjects = createCheckbox("Clear current objects",
+                clearCurrentObjectsProperty,
+                "Clear current objects to avoid overlaps");
 
         CheckBox cbDisplayNames = createCheckbox("Display names",
                 qupath.getOverlayOptions().showNamesProperty(),
                 "Display the annotation names in the viewer\n(this is a global preference)");
 
+        CheckBox cbIncludeImageEdge = createCheckbox("Include image edge",
+                includeImageEdgeProperty,
+                "Include image edge in SAM auto mask generator");
+
         GridPane checkboxPane = createColumnPane(cbRandomColors, cbAssignNames);
+        checkboxPane.add(cbClearCurrentObjects, 0, 1, GridPane.REMAINING, 1);
+        checkboxPane.setVgap(H_GAP);
         checkboxPane.add(cbDisplayNames, 1, 1, GridPane.REMAINING, 1);
+        checkboxPane.setVgap(H_GAP);
+        checkboxPane.add(cbIncludeImageEdge, 0, 2, GridPane.REMAINING, 1);
         checkboxPane.setVgap(H_GAP);
 
         pane.add(checkboxPane, 0, row, GridPane.REMAINING, 1);
@@ -538,13 +602,19 @@ public class SAMAutoMaskCommand implements Runnable {
 
 
     private void addButtons(GridPane pane, int row) {
+        Button btnResetParameters = new Button("Reset parameters");
+        btnResetParameters.setOnAction(event -> resetParameters());
+        btnResetParameters.setMaxWidth(Double.MAX_VALUE);
+        btnResetParameters.setTooltip(new Tooltip("Reset parameters to default values"));
+
         Button btnRunOnce = new Button("Run");
         btnRunOnce.setOnAction(event -> runOnce());
         btnRunOnce.setMaxWidth(Double.MAX_VALUE);
         btnRunOnce.setTooltip(new Tooltip(
                 "Run the model once using the selected annotations (points or rectangles)"));
         btnRunOnce.disableProperty().bind(disableRunning);
-        Pane buttonPane = createColumnPane(btnRunOnce);
+
+        Pane buttonPane = createColumnPane(btnResetParameters, btnRunOnce);
         pane.add(buttonPane, 0, row, GridPane.REMAINING, 1);
     }
 
@@ -560,7 +630,14 @@ public class SAMAutoMaskCommand implements Runnable {
             if (spinner.getEditor().getText().equals(""))
                 spinner.getValueFactory().valueProperty().set(min);
         });
-        spinner.valueProperty().addListener((obs, oldValue, newValue) -> property.set(newValue));
+        spinner.valueProperty().addListener((obs, oldValue, newValue) -> {
+            if (!newValue.equals(oldValue))
+                property.set(newValue);
+        });
+        property.addListener((obs, oldValue, newValue) -> {
+            if (!newValue.equals(oldValue))
+                spinner.getValueFactory().setValue(newValue.intValue());
+        });
         return spinner;
     }
 
@@ -576,7 +653,14 @@ public class SAMAutoMaskCommand implements Runnable {
             if (spinner.getEditor().getText().equals(""))
                 spinner.getValueFactory().valueProperty().set(min);
         });
-        spinner.valueProperty().addListener((obs, oldValue, newValue) -> property.set(newValue));
+        spinner.valueProperty().addListener((obs, oldValue, newValue) -> {
+            if (!newValue.equals(oldValue))
+                property.set(newValue);
+        });
+        property.addListener((obs, oldValue, newValue) -> {
+            if (!newValue.equals(oldValue))
+                spinner.getValueFactory().setValue(newValue.doubleValue());
+        });
         return spinner;
     }
 
@@ -667,7 +751,7 @@ public class SAMAutoMaskCommand implements Runnable {
         pane.add(cropNPointsDownscaleFactorPane, 0, row++, GridPane.REMAINING, 1);
 
         Spinner<Integer> minMaskRegionAreaSpinner = createIntegerSpinner(
-                0, 100, minMaskRegionAreaProperty, 1,
+                0, 100000, minMaskRegionAreaProperty, 1,
                 "If >0, postprocessing will be applied to remove disconnected regions and holes in masks with area " +
                         "smaller than min_mask_region_area. Requires opencv."
         );

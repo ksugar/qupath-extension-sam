@@ -52,6 +52,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
     private final boolean setRandomColor;
     private final boolean setName;
+    private final boolean clearCurrentObjects;
     private final SAMOutput outputType;
 
     private final String serverURL;
@@ -79,6 +80,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private final int cropNPointsDownscaleFactor;
 
     private final int minMaskRegionArea;
+
+    private final boolean includeImageEdge;
 
 
     private SAMAutoMaskTask(Builder builder) {
@@ -110,6 +113,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         this.outputType = builder.outputType;
         this.setName = builder.setName;
+        this.clearCurrentObjects = builder.clearCurrentObjects;
         this.setRandomColor = builder.setRandomColor;
         this.pointsPerSide = builder.pointsPerSide;
         this.predIoUThresh = builder.predIoUThresh;
@@ -122,6 +126,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         this.cropOverlapRatio = builder.cropOverlapRatio;
         this.cropNPointsDownscaleFactor = builder.cropNPointsDownscaleFactor;
         this.minMaskRegionArea = builder.minMaskRegionArea;
+        this.includeImageEdge = builder.includeImageEdge;
     }
 
     @Override
@@ -130,6 +135,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
             List<PathObject> detected = detectObjects();
             if (!detected.isEmpty()) {
                 PathObjectHierarchy hierarchy = imageData.getHierarchy();
+                if (clearCurrentObjects)
+                    hierarchy.clearAll();
                 hierarchy.addObjects(detected);
                 hierarchy.getSelectionModel().clearSelection();
             } else {
@@ -164,6 +171,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
                 .cropOverlapRatio(cropOverlapRatio)
                 .cropNPointsDownscaleFactor(cropNPointsDownscaleFactor)
                 .minMaskRegionArea(minMaskRegionArea)
+                .outputType(outputType.toString())
+                .includeImageEdge(includeImageEdge)
                 .build();
 
         if (isCancelled())
@@ -212,7 +221,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
                 Utils.setRandomColor(pathObject);
             updatedObjects.add(pathObject);
         }
-        return Utils.selectByOutputType(updatedObjects, outputType);
+        return updatedObjects;
     }
 
 
@@ -236,6 +245,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
         private boolean setName = true;
+        private boolean clearCurrentObjects = true;
         private int pointsPerSide = 32;
         private int pointsPerBatch = 64;
         private double predIoUThresh = 0.88;
@@ -247,6 +257,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private double cropOverlapRatio = (double) 512 / 1500;
         private int cropNPointsDownscaleFactor = 1;
         private int minMaskRegionArea = 0;
+        private boolean includeImageEdge = false;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -314,6 +325,16 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder setName(final boolean setName) {
             this.setName = setName;
+            return this;
+        }
+
+        /**
+         * Clear current objects after running SAM auto mask.
+         * @param clearCurrentObjects
+         * @return this builder
+         */
+        public Builder clearCurrentObjects(final boolean clearCurrentObjects) {
+            this.clearCurrentObjects = clearCurrentObjects;
             return this;
         }
 
@@ -431,6 +452,16 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder minMaskRegionArea(final int minMaskRegionArea) {
             this.minMaskRegionArea = minMaskRegionArea;
+            return this;
+        }
+
+        /**
+         * If specified, include image edge in SAM auto mask generator.
+         * @param includeImageEdge
+         * @return this builder
+         */
+        public Builder includeImageEdge(final boolean includeImageEdge) {
+            this.includeImageEdge = includeImageEdge;
             return this;
         }
 

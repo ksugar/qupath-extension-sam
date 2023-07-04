@@ -29,12 +29,12 @@ public class SAMExtension implements QuPathExtension {
 		
 		private final QuPathGUI qupath;
 
-		@ActionMenu("SAM command")
-		@ActionDescription("Launch Segment Anything command.")
+		@ActionMenu("SAM prompt")
+		@ActionDescription("Launch Segment Anything prompt.")
 		public final Action actionSAMCommand;
 
-		@ActionMenu("SAM automask")
-		@ActionDescription("Launch Segment Anything AutoMask command.")
+		@ActionMenu("SAM auto mask")
+		@ActionDescription("Launch Segment Anything auto mask generator.")
 		public final Action actionSAMAutoMaskCommand;
 		
 		private SAMCommands(QuPathGUI qupath) {

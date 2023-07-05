@@ -102,11 +102,13 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint.gif" width="768">
 
+<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-rectangle-prompt.gif" width="768">
+
 #### Support point background prompts
 - Points with 'ignored*' classifications are passed to the model as background prompts
   (Sidenote: it seems a large number of background points harm the prediction... or I've done something wrong)
 
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-rectangle-prompt.gif" width="768">
+<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint-live.gif" width="768">
 
 #### Implement 'Live mode' and 'Run for selected'
 - 'Live mode' toggle button to turn live detection on or off
@@ -114,7 +116,6 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
   - This makes it possible to annotate first, then run SAM across multiple objects - as required [on the forum](https://forum.image.sc/t/qupath-extension-segment-anything-model-sam/82420/10)
 
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-point-prompt.gif" width="768">
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint-live.gif" width="768">
 
 #### Support SamAutomaticMaskGenerator
 

@@ -1,0 +1,145 @@
+plugins {
+  // Main gradle plugin for building a Java library
+  id 'java-library'
+  // To create a shadow/fat jar that bundle up all dependencies
+  id 'com.github.johnrengelman.shadow' version '7.1.2'
+  // Include this plugin to avoid downloading JavaCPP dependencies for all platforms
+  id 'org.bytedeco.gradle-javacpp-platform'
+}
+
+// TODO: Change the module name
+ext.moduleName = 'org.elephant.sam.qupath'
+
+// TODO: Define the extension version & provide a short description
+version = "0.3.0"
+description = 'QuPath extension for Segment Anything Model (SAM)'
+
+// TODO: Specify the QuPath version, compatible with the extension.
+// The default 'gradle.ext.qupathVersion' reads this from settings.gradle.
+ext.qupathVersion = gradle.ext.qupathVersion
+
+// TODO: Specify the Java version compatible with the extension
+// Generally 11 for QuPath v0.4.3, but will be 17 for QuPath v0.5.0
+ext.qupathJavaVersion = 11
+
+/**
+ * Define dependencies.
+ * - Using 'shadow' indicates that they are already part of QuPath, so you don't need
+ *   to include them in your extension. If creating a single 'shadow jar' containing your
+ *   extension and all dependencies, these won't be added.
+ * - Using 'implementation' indicates that you need the dependency for the extension to work,
+ *   and it isn't part of QuPath already. If you are creating a single 'shadow jar', the
+ *   dependency should be bundled up in the extension.
+ * - Using 'testImplementation' indicates that the dependency is only needed for testing,
+ *   but shouldn't be bundled up for use in the extension.
+ */
+dependencies {
+
+    // Main QuPath user interface jar.
+    // Automatically includes other QuPath jars as subdependencies.
+    shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+
+    // For logging - the version comes from QuPath's version catalog at
+    // https://github.com/qupath/qupath/blob/main/gradle/libs.versions.toml
+    // See https://docs.gradle.org/current/userguide/platforms.html
+    shadow libs.slf4j
+
+    testImplementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+    testImplementation libs.junit
+}
+
+/*
+ * Manifest info
+ */
+jar {
+    manifest {
+        attributes("Implementation-Title": project.name,
+                "Implementation-Version": archiveVersion,
+                "Automatic-Module-Name": moduleName)
+    }
+}
+
+/*
+ * Copy the LICENSE file into the jar... if we have one (we should!)
+ */
+processResources {
+  from ("${projectDir}/LICENSE") {
+    into 'licenses/'
+  }
+}
+
+/*
+ * Define extra 'copyDependencies' task to copy dependencies into the build directory.
+ */
+tasks.register("copyDependencies", Copy) {
+    description "Copy dependencies into the build directory for use elsewhere"
+    group "QuPath"
+
+    from configurations.default
+    into 'build/libs'
+}
+
+/*
+ * Ensure Java 11 compatibility, and include sources and javadocs when building.
+ */
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(qupathJavaVersion)
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
+/*
+ * Create javadocs for all modules/packages in one place.
+ * Use -PstrictJavadoc=true to fail on error with doclint (which is rather strict).
+ */
+tasks.withType(Javadoc) {
+	options.encoding = 'UTF-8'
+	def strictJavadoc = findProperty('strictJavadoc')
+	if (!strictJavadoc) {
+        options.addStringOption('Xdoclint:none', '-quiet')
+	}
+}
+
+/*
+ * Specify that the encoding should be UTF-8 for source files
+ */
+tasks.named('compileJava') {
+	options.encoding = 'UTF-8'
+}
+
+/*
+ * Avoid 'Entry .gitkeep is a duplicate but no duplicate handling strategy has been set.'
+ * when using withSourcesJar()
+ */
+tasks.withType(org.gradle.jvm.tasks.Jar) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
+/*
+ * Support tests with JUnit.
+ */
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Looks redundant to include this here and in settings.gradle,
+// but helps overcome some gradle trouble when including this as a subproject
+// within QuPath itself (which is useful during development).
+repositories {
+    // Add this if you need access to dependencies only installed locally
+    //  mavenLocal()
+
+    mavenCentral()
+
+    // Add scijava - which is where QuPath's jars are hosted
+    maven {
+        url "https://maven.scijava.org/content/repositories/releases"
+    }
+
+    maven {
+        url "https://maven.scijava.org/content/repositories/snapshots"
+    }
+
+}

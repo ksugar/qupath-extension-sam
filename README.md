@@ -96,55 +96,57 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 ### v0.3.0
 
-#### Support for both point and rectangle foreground prompts
-- Ensure each new point is a distinct object while SAM is running (i.e. turn of 'Multipoint' mode)
-- Support line ROIs as a way of adding multiple points in a single object
+- Support for both point and rectangle foreground prompts by [@petebankhead](https://github.com/petebankhead)
+  - Ensure each new point is a distinct object while SAM is running (i.e. turn of 'Multipoint' mode)
+  - Support line ROIs as a way of adding multiple points in a single object
 
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint.gif" width="768">
+  <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint.gif" width="768">
 
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-rectangle-prompt.gif" width="768">
+  <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-rectangle-prompt.gif" width="768">
 
-#### Support point background prompts
-- Points with 'ignored*' classifications are passed to the model as background prompts
-  (Sidenote: it seems a large number of background points harm the prediction... or I've done something wrong)
+- Support point background prompts by [@petebankhead](https://github.com/petebankhead)
+  - Points with 'ignored*' classifications are passed to the model as background prompts
+    (Sidenote: it seems a large number of background points harm the prediction... or I've done something wrong)
 
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint-live.gif" width="768">
+  <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint-live.gif" width="768">
 
-#### Implement 'Live mode' and 'Run for selected'
-- 'Live mode' toggle button to turn live detection on or off
-- Alternative 'Run for selected' button to use only the selected foreground and background objects
-  - This makes it possible to annotate first, then run SAM across multiple objects - as required [on the forum](https://forum.image.sc/t/qupath-extension-segment-anything-model-sam/82420/10)
+- Implement 'Live mode' and 'Run for selected' by [@petebankhead](https://github.com/petebankhead)
+  - 'Live mode' toggle button to turn live detection on or off
+  - Alternative 'Run for selected' button to use only the selected foreground and background objects
+    - This makes it possible to annotate first, then run SAM across multiple objects - as required [on the forum](https://forum.image.sc/t/qupath-extension-segment-anything-model-sam/82420/10)
 
-<img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-point-prompt.gif" width="768">
+  <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-point-prompt.gif" width="768">
 
-#### Support SamAutomaticMaskGenerator
+- Support SamAutomaticMaskGenerator
 
-<img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-automask.gif" width="768">
+  <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-automask.gif" width="768">
 
-#### Menu items simplified to a single command to launch a dialog to control annotation with SAM
-- Provide persistent preferences for key choices (e.g. server, model)
-- Run prediction in a background thread with (indeterminate) progress indicator
-- Help the user with tooltips (and prompts shown at the bottom of the dialog)
+- Menu items simplified to a single command to launch a dialog to control annotation with SAM by [@petebankhead](https://github.com/petebankhead)
+  - Provide persistent preferences for key choices (e.g. server, model)
+  - Run prediction in a background thread with (indeterminate) progress indicator
+  - Help the user with tooltips (and prompts shown at the bottom of the dialog)
 
-#### Handle changing the current image while the command is running
-- Send entire field of view for point prediction
-  This is useful for one-click annotation of visible structures
+- Handle changing the current image while the command is running by [@petebankhead](https://github.com/petebankhead)
+  - Send entire field of view for point prediction
+    This is useful for one-click annotation of visible structures
 
-#### Include the 'quality' metric as a measurement for objects that are created
-Support z-stacks/time series (by using the image plane; there's no support for 3D objects)
+- Include the 'quality' metric as a measurement for objects that are created by [@petebankhead](https://github.com/petebankhead)
 
-#### Optionally assign names & random colors to identify the generated objects
+- Support z-stacks/time series (by using the image plane; there's no support for 3D objects) by [@petebankhead](https://github.com/petebankhead) and [@rharkes](https://github.com/rharkes)
 
-#### Optionally return multiple (3) detections instead of 1
-- Select which detection to retain based upon size or quality, or keep all of them
+- Optionally assign names & random colors to identify the generated objects by [@petebankhead](https://github.com/petebankhead)
 
-#### Optionally keep the prompt objects, instead of immediately deleting them
+- Optionally return multiple (3) detections instead of 1 by [@petebankhead](https://github.com/petebankhead)
+
+- Select which detection to retain based upon size or quality, or keep all of them by [@petebankhead](https://github.com/petebankhead)
+
+- Optionally keep the prompt objects, instead of immediately deleting them by [@petebankhead](https://github.com/petebankhead)
 
 ### v0.2.0
 
-#### Support any number of channels
+- Support any number of channels
 
-<img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-5channels-1080p.gif" width="768">
+  <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-5channels-1080p.gif" width="768">
 
 ## Citation
 

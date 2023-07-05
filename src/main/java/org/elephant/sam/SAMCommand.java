@@ -278,7 +278,6 @@ public class SAMCommand implements Runnable {
 
     private void startLiveMode() {
         // Turn off the multipoint tool, so that each new point is a new object
-        previousMultipointValue = PathPrefs.multipointToolProperty().get();
         PathPrefs.multipointToolProperty().set(false);
         // Try to run once with the current selected objects
         runOnce();
@@ -470,6 +469,7 @@ public class SAMCommand implements Runnable {
         stage.initOwner(qupath.getStage());
         stage.setOnCloseRequest(event -> {
             hideStage();
+            stopLiveMode();
             event.consume();
         });
         return stage;

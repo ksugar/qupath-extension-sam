@@ -18,7 +18,17 @@ Please note that you need to set up the server following the instructions in the
 
 [https://github.com/ksugar/samapi](https://github.com/ksugar/samapi)
 
-**Please note that you need to connect to a server running [samapi v0.3](https://github.com/ksugar/samapi/tree/v0.3.0).**
+## Update
+
+To update the `qupath-extension-sam`, follow the following instructions.
+
+1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
+   ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.3.0/qupath-extension-sam-0.3.0.jar).
+3. Restart QuPath application.
+
+Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.3.0) server.  
+To keep updated with the latest samapi server, follow the instructions [here](https://github.com/ksugar/samapi#update).
 
 ## Usage
 

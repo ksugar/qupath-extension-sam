@@ -1,14 +1,15 @@
-package org.elephant.sam;
+package org.elephant.sam.entities;
 
 /**
  * Available SAM models.
  */
-public enum SAMModel {
+public enum SAMType {
 
     VIT_H, VIT_L, VIT_B, VIT_T;
 
     /**
      * Model name as used in the SAM code.
+     * 
      * @return
      */
     public String modelName() {
@@ -24,6 +25,7 @@ public enum SAMModel {
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }
+    
 
     @Override
     public String toString() {

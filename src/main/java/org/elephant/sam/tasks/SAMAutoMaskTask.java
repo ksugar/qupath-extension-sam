@@ -1,7 +1,12 @@
-package org.elephant.sam;
+package org.elephant.sam.tasks;
 
 import com.google.gson.Gson;
 import javafx.concurrent.Task;
+
+import org.elephant.sam.Utils;
+import org.elephant.sam.entities.SAMType;
+import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.parameters.SAMAutoMaskParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.awt.common.AwtTools;
@@ -16,9 +21,6 @@ import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
-import qupath.lib.roi.RectangleROI;
-import qupath.lib.roi.interfaces.ROI;
-
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -32,10 +34,12 @@ import java.util.*;
 /**
  * A task to perform SAM detection on a given image.
  * <p>
- * This task is designed to be run in a background thread, and will return a list of PathObjects
+ * This task is designed to be run in a background thread, and will return a
+ * list of PathObjects
  * representing the detected objects.
  * <p>
- * The task will also add the detected objects to the hierarchy, and update the viewer to show the
+ * The task will also add the detected objects to the hierarchy, and update the
+ * viewer to show the
  * detected objects.
  */
 public class SAMAutoMaskTask extends Task<List<PathObject>> {
@@ -46,7 +50,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private ImageServer<BufferedImage> renderedServer;
 
     /**
-     * The field of view visible within the viewer at the time the detection task was created.
+     * The field of view visible within the viewer at the time the detection task
+     * was created.
      */
     private RegionRequest viewerRegion;
 
@@ -57,7 +62,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
     private final String serverURL;
 
-    private final SAMModel model;
+    private final SAMType model;
 
     private final int pointsPerSide;
 
@@ -83,7 +88,6 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
     private final boolean includeImageEdge;
 
-
     private SAMAutoMaskTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
@@ -107,8 +111,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
 
         // Find the region and downsample currently used within the viewer
-        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(), viewer.getTPosition());
-        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(), region);
+        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
+                viewer.getTPosition());
+        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(),
+                region);
         this.viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
 
         this.outputType = builder.outputType;
@@ -191,12 +197,13 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
     }
 
-    private static HttpResponse<String> sendRequest(String serverURL, SAMAutoMaskParameters parameters) throws IOException, InterruptedException {
+    private static HttpResponse<String> sendRequest(String serverURL, SAMAutoMaskParameters parameters)
+            throws IOException, InterruptedException {
         final Gson gson = GsonTools.getInstance();
         final String body = gson.toJson(parameters);
         final HttpRequest request = HttpRequest.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(serverURL))
+                .uri(URI.create(String.format("%sautomask/", serverURL)))
                 .header("accept", "application/json")
                 .header("Content-Type", "application/json; charset=utf-8")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -205,7 +212,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest, PathClass pathClass) {
+    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest,
+            PathClass pathClass) {
         List<PathObject> samObjects = Utils.parsePathObjects(response.body());
         AffineTransform transform = new AffineTransform();
         transform.translate(regionRequest.getMinX(), regionRequest.getMinY());
@@ -224,24 +232,28 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         return updatedObjects;
     }
 
-
     /**
      * New builder for a SAM detection class.
-     * @param viewer the viewer containing the image to be processed
+     * 
+     * @param viewer
+     *            the viewer containing the image to be processed
      * @return the builder
      */
     public static Builder builder(QuPathViewer viewer) {
         return new Builder(viewer);
     }
 
-    static class Builder {
+    /**
+     * Builder for a SAMAutoMaskTask class.
+     */
+    public static class Builder {
 
         private QuPathViewer viewer;
 
         private ImageServer<BufferedImage> server;
 
         private String serverURL;
-        private SAMModel model = SAMModel.VIT_L;
+        private SAMType model = SAMType.VIT_L;
         private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
         private boolean setName = true;
@@ -265,6 +277,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * Specify the server URL (required).
+         * 
          * @param serverURL
          * @return this builder
          */
@@ -276,10 +289,11 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         /**
          * Specify the SAM model to use.
          * Default is SAMModel.VIT_L.
+         * 
          * @param model
          * @return this builder
          */
-        public Builder model(final SAMModel model) {
+        public Builder model(final SAMType model) {
             this.model = model;
             return this;
         }
@@ -287,6 +301,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         /**
          * Optionally request the output type.
          * Default is SAMOutput.SINGLE_MASK.
+         * 
          * @param outputType
          * @return this builder
          */
@@ -297,7 +312,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * Optionally specify a server to provide the pixels.
-         * This should be an RGB server. Otherwise, a rendered server will be created from the viewer.
+         * This should be an RGB server. Otherwise, a rendered server will be created
+         * from the viewer.
+         * 
          * @param server
          * @return this builder
          */
@@ -308,7 +325,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * Assign a random color to each unclassified object created.
-         * Classified objects are not assigned a color, since their coloring comes from the classification.
+         * Classified objects are not assigned a color, since their coloring comes from
+         * the classification.
+         * 
          * @param setRandomColor
          * @return this builder
          */
@@ -320,6 +339,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         /**
          * Set the name of each object that was created, to distinguish it as being from
          * SAM and to include the quality score.
+         * 
          * @param setName
          * @return this builder
          */
@@ -330,6 +350,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * Clear current objects after running SAM auto mask.
+         * 
          * @param clearCurrentObjects
          * @return this builder
          */
@@ -341,6 +362,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         /**
          * The number of points to be sampled along one side of the image.
          * The total number of points is points_per_side**2.
+         * 
          * @param pointsPerSide
          * @return this builder
          */
@@ -352,6 +374,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         /**
          * Sets the number of points run simultaneously by the model.
          * Higher numbers may be faster but use more GPU memory.
+         * 
          * @param pointsPerBatch
          * @return this builder
          */
@@ -362,6 +385,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * A filtering threshold in [0,1], using the model's predicted mask quality.
+         * 
          * @param predIoUThresh
          * @return this builder
          */
@@ -371,8 +395,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
 
         /**
-         * A filtering threshold in [0,1], using the stability of the mask under changes to the cutoff
+         * A filtering threshold in [0,1], using the stability of the mask under changes
+         * to the cutoff
          * used to binarize the model's mask predictions.
+         * 
          * @param stabilityScoreThresh
          * @return this builder
          */
@@ -383,6 +409,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * The amount to shift the cutoff when calculated the stability score.
+         * 
          * @param stabilityScoreOffset
          * @return this builder
          */
@@ -393,6 +420,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * The box IoU cutoff used by non-maximal suppression to filter duplicate masks.
+         * 
          * @param boxNmsThresh
          * @return this builder
          */
@@ -403,7 +431,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * If >0, mask prediction will be run again on crops of the image.
-         * Sets the number of layers to run, where each layer has 2**i_layer number of image crops.
+         * Sets the number of layers to run, where each layer has 2**i_layer number of
+         * image crops.
+         * 
          * @param cropNLayers
          * @return this builder
          */
@@ -413,7 +443,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
 
         /**
-         * The box IoU cutoff used by non-maximal suppression to filter duplicate masks between different crops.
+         * The box IoU cutoff used by non-maximal suppression to filter duplicate masks
+         * between different crops.
+         * 
          * @param cropNmsThresh
          * @return this builder
          */
@@ -426,6 +458,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          * Sets the degree to which crops overlap. In the first crop layer,
          * crops will overlap by this fraction of the image length.
          * Later layers with more crops scale down this overlap.
+         * 
          * @param cropOverlapRatio
          * @return this builder
          */
@@ -435,7 +468,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
 
         /**
-         * The number of points-per-side sampled in layer n is scaled down by crop_n_points_downscale_factor**n.
+         * The number of points-per-side sampled in layer n is scaled down by
+         * crop_n_points_downscale_factor**n.
+         * 
          * @param cropNPointsDownscaleFactor
          * @return this builder
          */
@@ -445,8 +480,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         }
 
         /**
-         * If >0, postprocessing will be applied to remove disconnected regions and holes in masks with area
+         * If >0, postprocessing will be applied to remove disconnected regions and
+         * holes in masks with area
          * smaller than min_mask_region_area. Requires opencv.
+         * 
          * @param minMaskRegionArea
          * @return this builder
          */
@@ -457,6 +494,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * If specified, include image edge in SAM auto mask generator.
+         * 
          * @param includeImageEdge
          * @return this builder
          */
@@ -467,6 +505,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         /**
          * Build the detection task.
+         * 
          * @return
          */
         public SAMAutoMaskTask build() {

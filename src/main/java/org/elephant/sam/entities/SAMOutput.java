@@ -1,4 +1,4 @@
-package org.elephant.sam;
+package org.elephant.sam.entities;
 
 /**
  * Available SAM output types.

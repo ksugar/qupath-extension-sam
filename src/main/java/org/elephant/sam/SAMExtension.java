@@ -1,6 +1,7 @@
 package org.elephant.sam;
 
 import org.controlsfx.control.action.Action;
+import org.elephant.sam.commands.SAMMainCommand;
 import qupath.lib.gui.ActionTools;
 import qupath.lib.gui.ActionTools.ActionDescription;
 import qupath.lib.gui.ActionTools.ActionMenu;
@@ -11,11 +12,21 @@ import qupath.lib.gui.extensions.QuPathExtension;
  * QuPath extension for SegmentAnything Model (SAM).
  */
 public class SAMExtension implements QuPathExtension {
-	
+
+	/**
+	 * Get the description of the extension.
+	 * 
+	 * @return The description of the extension.
+	 */
 	public String getDescription() {
 		return "Run SegmentAnything Model (SAM).";
 	}
 
+	/**
+	 * Get the name of the extension.
+	 * 
+	 * @return The name of the extension.
+	 */
 	public String getName() {
 		return "SegmentAnything";
 	}
@@ -23,26 +34,23 @@ public class SAMExtension implements QuPathExtension {
 	public void installExtension(QuPathGUI qupath) {
 		qupath.installActions(ActionTools.getAnnotatedActions(new SAMCommands(qupath)));
 	}
-	
-	@ActionMenu("Extensions>SAM")
-	public class SAMCommands {
-		
-		private final QuPathGUI qupath;
 
-		@ActionMenu("SAM prompt")
-		@ActionDescription("Launch Segment Anything prompt.")
+	@ActionMenu("Extensions")
+	public class SAMCommands {
+
+		@ActionMenu("SAM")
+		@ActionDescription("Launch SAM dialog.")
 		public final Action actionSAMCommand;
 
-		@ActionMenu("SAM auto mask")
-		@ActionDescription("Launch Segment Anything auto mask generator.")
-		public final Action actionSAMAutoMaskCommand;
-		
+		/**
+		 * Constructor.
+		 * 
+		 * @param qupath
+		 *            The QuPath GUI.
+		 */
 		private SAMCommands(QuPathGUI qupath) {
-			SAMCommand samCommand = new SAMCommand(qupath);
+			SAMMainCommand samCommand = new SAMMainCommand(qupath);
 			actionSAMCommand = new Action(event -> samCommand.run());
-			SAMAutoMaskCommand samAutoMaskCommand = new SAMAutoMaskCommand(qupath);
-			actionSAMAutoMaskCommand = new Action(event -> samAutoMaskCommand.run());
-			this.qupath = qupath;
 		}
 
 	}

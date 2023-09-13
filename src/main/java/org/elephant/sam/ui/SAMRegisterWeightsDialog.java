@@ -55,7 +55,7 @@ public class SAMRegisterWeightsDialog extends Dialog<SAMWeights> {
         comboSAMType.getSelectionModel().select(samTypeProperty.get());
         samTypeProperty.bind(comboSAMType.getSelectionModel().selectedItemProperty());
         comboSAMType.setMaxWidth(Double.MAX_VALUE);
-        comboSAMType.setTooltip(new Tooltip("The SAM model to use for detection."));
+        comboSAMType.setTooltip(new Tooltip("The SAM type to register."));
         GridPane.setFillWidth(comboSAMType, true);
 
         labelName = new Label("Name: ");
@@ -64,7 +64,7 @@ public class SAMRegisterWeightsDialog extends Dialog<SAMWeights> {
         textFieldName.setMaxWidth(Double.MAX_VALUE);
         textFieldName.setPrefColumnCount(32);
         textFieldName.setTooltip(
-                new Tooltip("The SAM model name to register. It needs to be unique in the same SAM type."));
+                new Tooltip("The SAM weights name to register. It needs to be unique in the same SAM type."));
         GridPane.setHgrow(textFieldName, Priority.ALWAYS);
         GridPane.setFillWidth(textFieldName, true);
 

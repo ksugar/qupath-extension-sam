@@ -24,10 +24,10 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.3.0/qupath-extension-sam-0.3.0.jar).
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.0/qupath-extension-sam-0.4.0.jar).
 3. Restart QuPath application.
 
-Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.3.0) server.  
+Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.4.0) server.  
 To keep updated with the latest samapi server, follow the instructions [here](https://github.com/ksugar/samapi#update).
 
 ## Usage
@@ -36,18 +36,20 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 
 #### Rectangle (BBox) prompt
 
-1. Select `Extensions` > `SAM` > `SAM prompt` from the menu bar.
-2. Select a rectangle tool by clicking the icon.
-3. Add rectangles.
-4. Select rectangles to process. (`Alt` + `Ctrl` + `A`: Select all annotation objects `Ctrl` or `⌘` + left click: Select multiple objects)
-5. Press the `Run for selected` button.
-6. If you activate `Live mode`, SAM predicts a mask every time you add a rectangle.
+1. Select `Extensions` > `SAM` from the menu bar.
+2. Select the `Prompt` tab in the `Segment Anyghing Model` dialog.
+3. Select a rectangle tool by clicking the icon.
+4. Add rectangles.
+5. Select rectangles to process. (`Alt` + `Ctrl` + `A`: Select all annotation objects `Ctrl` or `⌘` + left click: Select multiple objects)
+6. Press the `Run for selected` button.
+7. If you activate `Live mode`, SAM predicts a mask every time you add a rectangle.
 
 <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-rectangle-prompt.gif" width="768">
 
 #### Point prompt
 
-1. Select `Extensions` > `SAM` > `SAM prompt` from the menu bar.
+1. Select `Extensions` > `SAM` from the menu bar.
+2. Select the `Prompt` tab in the `Segment Anyghing Model` dialog.
 2. Select a point tool by clicking the icon.
 3. Add foreground points.
 4. (Optional) add background points.
@@ -61,6 +63,8 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 | key                  | value                                                                                                                                                                                                                                                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Server               | URL of the server.                                                                                                                                                                                                                                                                                                                          |
+| SAM type             | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.                                                                                                                                                                                                                                                                |
+| SAM weights          | The SAM weights to use. The options are automatically fetched from the server.                                                                                                                                                                                                                                                              |
 | Output type          | If `Single Mask` is selected, the model will return single masks per prompt. If `Multi-mask` is selected, the model will return three masks per prompt. `Multi-mask (all)` keeps all three masks. One of the three masks is kept if the option `Multi-mask (largest)`, `Multi-mask (smallest)`, or `Multi-mask (best quality)` is selected. |
 | Display names        | Display the annotation names in the viewer. (this is a global preference)                                                                                                                                                                                                                                                                   |
 | Assign random colors | If checked and no path class is set in `Auto set` setting, assign random colors to new (unclassified) objects created by SAM.                                                                                                                                                                                                               |
@@ -70,14 +74,18 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 
 ### SamAutomaticMaskGenerator
 
-Select `Extensions` > `SAM` > `SAM auto mask` from the menu bar.
+1. Select `Extensions` > `SAM` from the menu bar.
+2. Select the `Auto mask` tab in the `Segment Anyghing Model` dialog.
+3. Set parameters.
+4. Press the `Run` button.
 
 #### Parameters
 
 | key                            | value                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Server                         | URL of the server.                                                                                                                                                                                                                                                                                                                          |
-| SAM model                      | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.                                                                                                                                                                                                                                                                |
+| SAM type                       | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.                                                                                                                                                                                                                                                                |
+| SAM weights                    | The SAM weights to use. The options are automatically fetched from the server.                                                                                                                                                                                                                                                              |
 | Assign random colors           | If checked and no path class is set in `Auto set` setting, assign random colors to new (unclassified) objects created by SAM.                                                                                                                                                                                                               |
 | Assign names                   | If checked, assign names to identify new objects as created by SAM, including quality scores.                                                                                                                                                                                                                                               |
 | Keep prompts                   | If checked, keep the foreground prompts after detection. If not checked, these are deleted.                                                                                                                                                                                                                                                 |
@@ -95,6 +103,22 @@ Select `Extensions` > `SAM` > `SAM auto mask` from the menu bar.
 | min_mask_region_area           | If >0, postprocessing will be applied to remove disconnected regions and holes in masks with area smaller than min_mask_region_area. Requires opencv.                                                                                                                                                                                       |
 | output_type                    | If 'Single Mask' is selected, the model will return single masks per prompt. If 'Multi-mask' is selected, the model will return three masks per prompt. 'Multi-mask (all)' keeps all three masks. One of the three masks is kept if the option 'Multi-mask (largest)', 'Multi-mask (smallest)', or 'Multi-mask (best quality)' is selected. |
 | include_image_edge             | If True, include a crop area at the edge of the original image.                                                                                                                                                                                                                                                                             |
+### Register SAM weights from URL
+
+1. Select `Extensions` > `SAM` from the menu bar.
+2. Press the `Register` button in the `Segment Anyghing Model` dialog.
+
+<img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-register-weights-from-url.png" width="768">
+
+The weights file is downloaded from the URL and registered on the server. After the registration, you can select the weights from the `SAM weights` dropdown menu.
+
+#### Parameters
+
+| key      | value                                                                         |
+| -------- | ----------------------------------------------------------------------------- |
+| SAM type | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.  |
+| Name     | The SAM weights name to register. It needs to be unique in the same SAM type. |
+| URL      | The URL to the SAM weights file.                                              |
 
 ### Tips
 
@@ -103,6 +127,9 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
 ## Updates
+
+### v0.4.0
+- Support for registering SAM weights from URL. [ksugar/qupath-extension-sam#8](https://github.com/ksugar/qupath-extension-sam/issues/8) [ksugar/samapi#11](https://github.com/ksugar/samapi/pull/11) by [@constantinpape](https://github.com/constantinpape)
 
 ### v0.3.0
 

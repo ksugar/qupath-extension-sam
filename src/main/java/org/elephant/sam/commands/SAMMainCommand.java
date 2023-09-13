@@ -538,7 +538,7 @@ public class SAMMainCommand implements Runnable {
             List<PathObject> backgroundObjects = getBackgroundObjects(selectedObjects);
             submitDetectionTask(foregroundObjects, backgroundObjects);
         } else {
-            updateInfoText("No foreground objects to use for detection");
+            updateInfoText("No foreground objects to use");
         }
     }
 

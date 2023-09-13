@@ -166,7 +166,7 @@ public class SAMMainPane extends GridPane {
             command.submitFetchWeightsTask(newValue);
         });
         combo.setMaxWidth(Double.MAX_VALUE);
-        Tooltip tooltip = new Tooltip("The SAM model to use for detection.\n" +
+        Tooltip tooltip = new Tooltip("The SAM model to use.\n" +
                 "These differ in size and speed (and maybe accuracy)");
         combo.setTooltip(tooltip);
         GridPane.setFillWidth(combo, true);
@@ -191,11 +191,11 @@ public class SAMMainPane extends GridPane {
         });
         command.getSelectedWeightsProperty().bind(combo.getSelectionModel().selectedItemProperty());
         combo.setMaxWidth(Double.MAX_VALUE);
-        Tooltip tooltip = new Tooltip("The SAM weight to use for detection.");
+        Tooltip tooltip = new Tooltip("The SAM weights to use.");
         combo.setTooltip(tooltip);
         GridPane.setFillWidth(combo, true);
 
-        Label label = new Label("SAM weight");
+        Label label = new Label("SAM weights");
         label.setLabelFor(combo);
         label.setTooltip(tooltip);
         add(label, 0, row);

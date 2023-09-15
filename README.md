@@ -129,7 +129,7 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 ## Updates
 
 ### v0.4.0
-- Support for registering SAM weights from URL. [ksugar/qupath-extension-sam#8](https://github.com/ksugar/qupath-extension-sam/issues/8) [ksugar/samapi#11](https://github.com/ksugar/samapi/pull/11) by [@constantinpape](https://github.com/constantinpape)
+- Support for registering SAM weights from URL. [ksugar/qupath-extension-sam#8](https://github.com/ksugar/qupath-extension-sam/issues/8) [ksugar/samapi#11](https://github.com/ksugar/samapi/pull/11) suggested and tested by [@constantinpape](https://github.com/constantinpape)
 - Combine the `Prompt` and `Auto mask` dialogs into a single `Segment Anything Model` dialog.
 
 ### v0.3.0

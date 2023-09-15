@@ -1,7 +1,8 @@
-package org.elephant.sam;
-
+package org.elephant.sam.parameters;
 
 import java.util.Objects;
+
+import org.elephant.sam.entities.SAMType;
 
 /**
  * Parameters that is sent to the server for SAM auto mask, as JSON.
@@ -61,14 +62,16 @@ public class SAMAutoMaskParameters {
 
 	/**
 	 * Create a builder for a new prompt.
-	 * @param model the SAM model
+	 * 
+	 * @param model
+	 *            the SAM model
 	 * @return a new builder for further customization
 	 */
-	public static SAMAutoMaskParameters.Builder builder(final SAMModel model) {
+	public static SAMAutoMaskParameters.Builder builder(final SAMType model) {
 		return new Builder(model);
 	}
 
-	static class Builder {
+	public static class Builder {
 		private String type;
 		private String b64img;
 		private int pointsPerSide;
@@ -85,12 +88,13 @@ public class SAMAutoMaskParameters {
 		private String outputType;
 		private boolean includeImageEdge;
 
-		private Builder(final SAMModel model) {
+		private Builder(final SAMType model) {
 			this.type = model.modelName();
 		};
 
 		/**
 		 * Base64-encoded image (required).
+		 * 
 		 * @param b64img
 		 * @return this builder
 		 */
@@ -102,6 +106,7 @@ public class SAMAutoMaskParameters {
 		/**
 		 * The number of points to be sampled along one side of the image.
 		 * The total number of points is points_per_side**2.
+		 * 
 		 * @param pointsPerSide
 		 * @return this builder
 		 */
@@ -113,6 +118,7 @@ public class SAMAutoMaskParameters {
 		/**
 		 * Sets the number of points run simultaneously by the model.
 		 * Higher numbers may be faster but use more GPU memory.
+		 * 
 		 * @param pointsPerBatch
 		 * @return this builder
 		 */
@@ -123,6 +129,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * A filtering threshold in [0,1], using the model's predicted mask quality.
+		 * 
 		 * @param predIoUThresh
 		 * @return this builder
 		 */
@@ -134,6 +141,7 @@ public class SAMAutoMaskParameters {
 		/**
 		 * A filtering threshold in [0,1], using the stability of the mask under changes to the cutoff
 		 * used to binarize the model's mask predictions.
+		 * 
 		 * @param stabilityScoreThresh
 		 * @return this builder
 		 */
@@ -144,6 +152,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * The amount to shift the cutoff when calculated the stability score.
+		 * 
 		 * @param stabilityScoreOffset
 		 * @return this builder
 		 */
@@ -154,6 +163,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * The box IoU cutoff used by non-maximal suppression to filter duplicate masks.
+		 * 
 		 * @param boxNmsThresh
 		 * @return this builder
 		 */
@@ -165,6 +175,7 @@ public class SAMAutoMaskParameters {
 		/**
 		 * If >0, mask prediction will be run again on crops of the image.
 		 * Sets the number of layers to run, where each layer has 2**i_layer number of image crops.
+		 * 
 		 * @param cropNLayers
 		 * @return this builder
 		 */
@@ -175,6 +186,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * The box IoU cutoff used by non-maximal suppression to filter duplicate masks between different crops.
+		 * 
 		 * @param cropNmsThresh
 		 * @return this builder
 		 */
@@ -187,6 +199,7 @@ public class SAMAutoMaskParameters {
 		 * Sets the degree to which crops overlap. In the first crop layer,
 		 * crops will overlap by this fraction of the image length.
 		 * Later layers with more crops scale down this overlap.
+		 * 
 		 * @param cropOverlapRatio
 		 * @return this builder
 		 */
@@ -197,6 +210,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * The number of points-per-side sampled in layer n is scaled down by crop_n_points_downscale_factor**n.
+		 * 
 		 * @param cropNPointsDownscaleFactor
 		 * @return this builder
 		 */
@@ -208,6 +222,7 @@ public class SAMAutoMaskParameters {
 		/**
 		 * If >0, postprocessing will be applied to remove disconnected regions and holes in masks with area
 		 * smaller than min_mask_region_area. Requires opencv.
+		 * 
 		 * @param minMaskRegionArea
 		 * @return this builder
 		 */
@@ -218,6 +233,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * How to deal with SAM masks.
+		 * 
 		 * @param outputType
 		 * @return this builder
 		 */
@@ -228,6 +244,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * If specified, include image edge in SAM auto mask generator.
+		 * 
 		 * @param includeImageEdge
 		 * @return this builder
 		 */
@@ -238,6 +255,7 @@ public class SAMAutoMaskParameters {
 
 		/**
 		 * Build the parameters.
+		 * 
 		 * @return parameters that are sent to the server
 		 */
 		public SAMAutoMaskParameters build() {

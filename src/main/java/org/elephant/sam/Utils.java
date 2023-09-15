@@ -3,6 +3,8 @@ package org.elephant.sam;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+
+import org.elephant.sam.entities.SAMOutput;
 import org.locationtech.jts.geom.Coordinate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,7 @@ import qupath.lib.objects.PathObjectTools;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
 
 import javax.imageio.ImageIO;
@@ -31,7 +34,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 /**
@@ -47,10 +49,11 @@ public class Utils {
      * Parse path objects from a JSON string.
      * Use this rather than the 'usual' JSON deserialization so that we can extract the quality
      * value from the object properties.
+     * 
      * @param json
      * @return a list of PathObjects, or empty list if none can be parsed
      */
-    static List<PathObject> parsePathObjects(String json) {
+    public static List<PathObject> parsePathObjects(String json) {
         Gson gson = GsonTools.getInstance();
         JsonElement element = gson.fromJson(json, JsonElement.class);
         if (element.isJsonObject() && element.getAsJsonObject().has("features"))
@@ -74,6 +77,7 @@ public class Utils {
 
     /**
      * Parse a single PathObject from a JsonElement.
+     * 
      * @param gson
      * @param element
      * @return the PathObject, or null if it cannot be parsed
@@ -96,26 +100,31 @@ public class Utils {
         return pathObject;
     }
 
-
     /**
      * Extract coordinates for a region of interest vertices, transformed to be in
      * the coordinate system of a downsampled region.
      * Note that coordinates that are outside the image bounds are skipped.
      *
-     * @param roi the ROI whose coordinates are of interest
-     * @param region the region request used to request pixels
-     * @param maxX the maximum X coordinate in the downsampled region (typically the requested image width)
-     * @param maxY the maximum Y coordinate in the downsampled region (typically the requested image height)
+     * @param roi
+     *            the ROI whose coordinates are of interest
+     * @param region
+     *            the region request used to request pixels
+     * @param maxX
+     *            the maximum X coordinate in the downsampled region (typically the
+     *            requested image width)
+     * @param maxY
+     *            the maximum Y coordinate in the downsampled region (typically the
+     *            requested image height)
      * @return
      */
-    static List<Coordinate> getCoordinates(ROI roi, RegionRequest region, int maxX, int maxY) {
+    public static List<Coordinate> getCoordinates(ROI roi, RegionRequest region, int maxX, int maxY) {
         List<Coordinate> coords = new ArrayList<>();
         double downsample = region.getDownsample();
         double xOffset = region.getMinX();
         double yOffset = region.getMinY();
         for (Point2 p : roi.getAllPoints()) {
-            int x = (int)Math.floor((p.getX() - xOffset) / downsample);
-            int y = (int)Math.floor((p.getY() - yOffset) / downsample);
+            int x = (int) Math.floor((p.getX() - xOffset) / downsample);
+            int y = (int) Math.floor((p.getY() - yOffset) / downsample);
             if (x >= 0 && y >= 0 && x < maxX && y < maxY) {
                 coords.add(new Coordinate(x, y));
             }
@@ -125,16 +134,21 @@ public class Utils {
 
     /**
      * Apply an affine transform to a PathObject, updating its plane and classification if necessary.
-     * @param pathObject the PathObject to transform
-     * @param transform the transform to apply
-     * @param pathClass the classification to assign
-     * @param plane the plane to assign
+     * 
+     * @param pathObject
+     *            the PathObject to transform
+     * @param transform
+     *            the transform to apply
+     * @param pathClass
+     *            the classification to assign
+     * @param plane
+     *            the plane to assign
      * @return the transformed PathObject. This may be the original object if no transforms were needed.
      * @implSpec This method is not applied recursively; it is assumed that the PathObject has no parent/child
      *           relationships that need to be preserved, but no check is made to confirm this.
      */
-    static PathObject applyTransformAndClassification(PathObject pathObject, AffineTransform transform,
-                                                      PathClass pathClass, ImagePlane plane) {
+    public static PathObject applyTransformAndClassification(PathObject pathObject, AffineTransform transform,
+            PathClass pathClass, ImagePlane plane) {
         if (transform != null && !transform.isIdentity()) {
             pathObject = PathObjectTools.transformObject(pathObject, transform, true);
         }
@@ -146,9 +160,10 @@ public class Utils {
 
     /**
      * Assign a name to an object, incorporating the quality measurement if available
+     * 
      * @param pathObject
      */
-    static void setNameForSAM(PathObject pathObject) {
+    public static void setNameForSAM(PathObject pathObject) {
         // If no classification is available, assign a name based upon the annotation quality
         Double quality = getSAMQuality(pathObject);
         String name;
@@ -160,10 +175,10 @@ public class Utils {
         pathObject.setName(name);
     }
 
-
     /**
      * Get the quality score from a path object, if possible.
      * If available, this is stored in the object's measurement list.
+     * 
      * @param pathObject
      * @return the quality score, or null if no score could be found
      */
@@ -173,65 +188,69 @@ public class Utils {
 
     /**
      * Assign a random color to an object
+     * 
      * @param pathObject
      */
-    static void setRandomColor(PathObject pathObject) {
+    public static void setRandomColor(PathObject pathObject) {
         double hue = Math.random();
         double saturation = 0.5 + Math.random() / 2.0;
         double brightness = 0.5 + Math.random() / 2.0;
-        Integer rgb = Color.HSBtoRGB((float)hue, (float)saturation, (float)brightness);
+        Integer rgb = Color.HSBtoRGB((float) hue, (float) saturation, (float) brightness);
         pathObject.setColor(rgb);
     }
 
-
     /**
      * Create a rendered (RGB) imageserver from a QuPath viewer.
+     * 
      * @param viewer
      * @return the image server
      */
-    static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) {
-        return new RenderedImageServer
-                .Builder(viewer.getImageData())
+    public static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) {
+        return new RenderedImageServer.Builder(viewer.getImageData())
                 .store(viewer.getImageRegionStore())
                 .renderer(viewer.getImageDisplay())
                 .build();
     }
 
-
     /**
      * Encode a BufferedImage as a base64-encoded PNG.
-     * @param img the input image (must be compatible with PNG export using ImageIO)
+     * 
+     * @param img
+     *            the input image (must be compatible with PNG export using ImageIO)
      * @return the base64-encoded string
      * @throws IOException
      */
-    static String base64EncodePNG(BufferedImage img) throws IOException {
+    public static String base64EncodePNG(BufferedImage img) throws IOException {
         return base64Encode(img, "png");
     }
 
     /**
      * Encode a BufferedImage as a base64-encoded image, written with ImageIO.
-     * @param img the input image
-     * @param format an ImageIO-friendly format string
+     * 
+     * @param img
+     *            the input image
+     * @param format
+     *            an ImageIO-friendly format string
      * @return the base64-encoded string
      * @throws IOException
      */
     static String base64Encode(BufferedImage img, String format) throws IOException {
         // Preallocate so that resizing is unlikely
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(
-                Math.min(1024*1024*16, img.getWidth() * img.getHeight() * 3));
+                Math.min(1024 * 1024 * 16, img.getWidth() * img.getHeight() * 3));
         ImageIO.write(img, format, baos);
         final byte[] bytes = baos.toByteArray();
         return Base64.getEncoder().encodeToString(bytes);
     }
 
-
     /**
      * Select one object from a list based upon the requested output type.
+     * 
      * @param pathObjects
      * @param outputType
      * @return the selected object or objects
      */
-    static List<PathObject> selectByOutputType(List<PathObject> pathObjects, SAMOutput outputType) {
+    public static List<PathObject> selectByOutputType(List<PathObject> pathObjects, SAMOutput outputType) {
         // It output type is SINGLE_MASK, then we should only have one object
         if (outputType == null || pathObjects.size() <= 1
                 || outputType == SAMOutput.SINGLE_MASK
@@ -257,13 +276,59 @@ public class Utils {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Get the area of a path object, or 0 if no ROI is available.
+     * 
+     * @param pathObject
+     * @return the area
+     */
     private static double getArea(PathObject pathObject) {
         return pathObject.hasROI() ? pathObject.getROI().getArea() : 0.0;
     }
 
+    /**
+     * Get the quality of a path object, or -1 if no quality is available.
+     * 
+     * @param pathObject
+     * @return the quality
+     */
     private static double getQuality(PathObject pathObject) {
         Double quality = Utils.getSAMQuality(pathObject);
         return quality == null ? -1 : quality;
+    }
+
+    /**
+     * Check if a path object has a line ROI.
+     * 
+     * @param pathObject
+     * @return true if the object has a line ROI
+     */
+    public static boolean hasLineROI(PathObject pathObject) {
+        return pathObject.hasROI() && pathObject.getROI().getRoiType() == ROI.RoiType.LINE;
+    }
+
+    /**
+     * Check if a path object has a rectangle ROI.
+     * 
+     * @param pathObject
+     * @return true if the object has a rectangle ROI
+     */
+    public static boolean hasRectangleROI(PathObject pathObject) {
+        return pathObject.getROI() instanceof RectangleROI;
+    }
+
+    public static boolean hasPointsROI(PathObject pathObject) {
+        return pathObject.hasROI() && pathObject.getROI().getRoiType() == ROI.RoiType.POINT;
+    }
+
+    /**
+     * Any annotation object with a non-empty ROI could potentially act as a prompt for detection.
+     * 
+     * @param pathObject
+     * @return true if the object could be used as a prompt
+     */
+    public static boolean isPotentialPromptObject(PathObject pathObject) {
+        return pathObject.isAnnotation() && pathObject.hasROI() && !pathObject.getROI().isEmpty();
     }
 
 }

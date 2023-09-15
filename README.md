@@ -12,7 +12,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.3.0/qupath-extension-sam-0.3.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.0/qupath-extension-sam-0.4.0.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Please note that you need to set up the server following the instructions in the link below.
 

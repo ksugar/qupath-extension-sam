@@ -88,6 +88,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
     private final boolean includeImageEdge;
 
+    private final String checkpointUrl;
+
     private SAMAutoMaskTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
@@ -133,6 +135,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         this.cropNPointsDownscaleFactor = builder.cropNPointsDownscaleFactor;
         this.minMaskRegionArea = builder.minMaskRegionArea;
         this.includeImageEdge = builder.includeImageEdge;
+        this.checkpointUrl = builder.checkpointUrl;
     }
 
     @Override
@@ -179,6 +182,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
                 .minMaskRegionArea(minMaskRegionArea)
                 .outputType(outputType.toString())
                 .includeImageEdge(includeImageEdge)
+                .checkpointUrl(checkpointUrl)
                 .build();
 
         if (isCancelled())
@@ -270,6 +274,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private int cropNPointsDownscaleFactor = 1;
         private int minMaskRegionArea = 0;
         private boolean includeImageEdge = false;
+        private String checkpointUrl = null;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -500,6 +505,17 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder includeImageEdge(final boolean includeImageEdge) {
             this.includeImageEdge = includeImageEdge;
+            return this;
+        }
+
+        /**
+         * If specified, use the specified checkpoint.
+         * 
+         * @param checkpointUrl
+         * @return this builder
+         */
+        public Builder checkpointUrl(final String checkpointUrl) {
+            this.checkpointUrl = checkpointUrl;
             return this;
         }
 

@@ -12,7 +12,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.0/qupath-extension-sam-0.4.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Please note that you need to set up the server following the instructions in the link below.
 
@@ -24,7 +24,7 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.0/qupath-extension-sam-0.4.0.jar).
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
 3. Restart QuPath application.
 
 Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.4.0) server.  
@@ -166,6 +166,12 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
 ## Updates
+
+### v0.4.1
+- Properly send the checkpoint URL parameter
+  - The checkpoint URL was not sent to the server.
+- Add a catalog of SAM weights to README
+- Add example scripts under [src/main/resources/scripts](src/main/resources/scripts)
 
 ### v0.4.0
 - Support for registering SAM weights from URL. [ksugar/qupath-extension-sam#8](https://github.com/ksugar/qupath-extension-sam/issues/8) [ksugar/samapi#11](https://github.com/ksugar/samapi/pull/11) suggested and tested by [@constantinpape](https://github.com/constantinpape)

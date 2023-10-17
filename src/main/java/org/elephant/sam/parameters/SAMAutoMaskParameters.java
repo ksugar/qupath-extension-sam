@@ -39,6 +39,8 @@ public class SAMAutoMaskParameters {
 	private String output_type;
 	@SuppressWarnings("unused")
 	private boolean include_image_edge;
+	@SuppressWarnings("unused")
+	private String checkpoint_url;
 
 	private SAMAutoMaskParameters(final Builder builder) {
 		Objects.requireNonNull(builder.type, "Model type must be specified");
@@ -58,6 +60,7 @@ public class SAMAutoMaskParameters {
 		this.min_mask_region_area = builder.minMaskRegionArea;
 		this.output_type = builder.outputType;
 		this.include_image_edge = builder.includeImageEdge;
+		this.checkpoint_url = builder.checkpointUrl;
 	}
 
 	/**
@@ -87,6 +90,7 @@ public class SAMAutoMaskParameters {
 		private int minMaskRegionArea;
 		private String outputType;
 		private boolean includeImageEdge;
+		private String checkpointUrl;
 
 		private Builder(final SAMType model) {
 			this.type = model.modelName();
@@ -250,6 +254,17 @@ public class SAMAutoMaskParameters {
 		 */
 		public Builder includeImageEdge(final boolean includeImageEdge) {
 			this.includeImageEdge = includeImageEdge;
+			return this;
+		}
+
+		/**
+		 * If specified, use the specified checkpoint.
+		 * 
+		 * @param checkpointUrl
+		 * @return this builder
+		 */
+		public Builder checkpointUrl(final String checkpointUrl) {
+			this.checkpointUrl = checkpointUrl;
 			return this;
 		}
 

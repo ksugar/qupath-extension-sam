@@ -575,6 +575,7 @@ public class SAMMainCommand implements Runnable {
                 .cropNPointsDownscaleFactor(cropNPointsDownscaleFactorProperty.get())
                 .minMaskRegionArea(minMaskRegionAreaProperty.get())
                 .includeImageEdge(includeImageEdgeProperty.get())
+                .checkpointUrl(selectedWeightsProperty.get().getUrl())
                 .build();
         submitTask(task);
     }
@@ -730,6 +731,7 @@ public class SAMMainCommand implements Runnable {
                 .outputType(outputTypeProperty.get())
                 .setName(setNamesProperty.get())
                 .setRandomColor(useRandomColorsProperty.get())
+                .checkpointUrl(selectedWeightsProperty.get().getUrl())
                 .build();
         task.setOnSucceeded(event -> {
             List<PathObject> detected = task.getValue();

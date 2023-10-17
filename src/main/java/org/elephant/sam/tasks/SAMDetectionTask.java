@@ -71,6 +71,8 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
 
     private final SAMType model;
 
+    private final String checkpointUrl;
+
     private SAMDetectionTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
@@ -106,6 +108,7 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         this.outputType = builder.outputType;
         this.setName = builder.setName;
         this.setRandomColor = builder.setRandomColor;
+        this.checkpointUrl = builder.checkpointUrl;
     }
 
     @Override
@@ -132,6 +135,7 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
             throws InterruptedException, IOException {
 
         SAMPromptParameters.Builder promptBuilder = SAMPromptParameters.builder(model)
+                .checkpointUrl(checkpointUrl)
                 .multimaskOutput(outputType != SAMOutput.SINGLE_MASK);
 
         // Determine which part of the image we need & set foreground prompts
@@ -254,6 +258,7 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
         private boolean setName = true;
+        private String checkpointUrl;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -353,6 +358,17 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
          */
         public Builder setName(final boolean setName) {
             this.setName = setName;
+            return this;
+        }
+
+        /**
+         * Specify the checkpoint URL.
+         * 
+         * @param checkpointUrl
+         * @return this builder
+         */
+        public Builder checkpointUrl(final String checkpointUrl) {
+            this.checkpointUrl = checkpointUrl;
             return this;
         }
 

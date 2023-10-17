@@ -26,6 +26,8 @@ public class SAMPromptParameters {
 	private int[] point_labels;
 	@SuppressWarnings("unused")
 	private boolean multimask_output;
+	@SuppressWarnings("unused")
+	private String checkpoint_url;
 
 	private SAMPromptParameters(final Builder builder) {
 		Objects.requireNonNull(builder.type, "Model type must be specified");
@@ -53,6 +55,7 @@ public class SAMPromptParameters {
 				ind++;
 			}
 		}
+		this.checkpoint_url = builder.checkpointUrl;
 	}
 
 	/**
@@ -72,6 +75,7 @@ public class SAMPromptParameters {
 		private String b64img;
 		private String b64mask;
 		private boolean multimask_output = false;
+		private String checkpointUrl;
 
 		private Collection<Coordinate> foreground = new LinkedHashSet<>();
 		private Collection<Coordinate> background = new LinkedHashSet<>();
@@ -148,6 +152,17 @@ public class SAMPromptParameters {
 		 */
 		public Builder multimaskOutput(boolean doMultimask) {
 			this.multimask_output = doMultimask;
+			return this;
+		}
+
+		/**
+		 * URL to a checkpoint file (optional).
+		 * 
+		 * @param checkpointUrl
+		 * @return this builder
+		 */
+		public Builder checkpointUrl(String checkpointUrl) {
+			this.checkpointUrl = checkpointUrl;
 			return this;
 		}
 

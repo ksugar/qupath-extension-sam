@@ -2,10 +2,9 @@ package org.elephant.sam;
 
 import org.controlsfx.control.action.Action;
 import org.elephant.sam.commands.SAMMainCommand;
-import qupath.lib.gui.ActionTools;
-import qupath.lib.gui.ActionTools.ActionDescription;
-import qupath.lib.gui.ActionTools.ActionMenu;
+import qupath.lib.gui.actions.ActionTools;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.actions.annotations.ActionMenu;
 import qupath.lib.gui.extensions.QuPathExtension;
 
 /**
@@ -39,7 +38,6 @@ public class SAMExtension implements QuPathExtension {
 	public class SAMCommands {
 
 		@ActionMenu("SAM")
-		@ActionDescription("Launch SAM dialog.")
 		public final Action actionSAMCommand;
 
 		/**
@@ -50,7 +48,7 @@ public class SAMExtension implements QuPathExtension {
 		 */
 		private SAMCommands(QuPathGUI qupath) {
 			SAMMainCommand samCommand = new SAMMainCommand(qupath);
-			actionSAMCommand = new Action(event -> samCommand.run());
+			actionSAMCommand = new Action("Launch SAM dialog.", event -> samCommand.run());
 		}
 
 	}

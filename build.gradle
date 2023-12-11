@@ -5,13 +5,15 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '7.1.2'
   // Include this plugin to avoid downloading JavaCPP dependencies for all platforms
   id 'org.bytedeco.gradle-javacpp-platform'
+  // Include JavaFX dependencies
+  alias(libs.plugins.javafx)
 }
 
 // TODO: Change the module name
 ext.moduleName = 'org.elephant.sam.qupath'
 
 // TODO: Define the extension version & provide a short description
-version = "0.4.1"
+version = "0.5.0"
 description = 'QuPath extension for Segment Anything Model (SAM)'
 
 // TODO: Specify the QuPath version, compatible with the extension.
@@ -20,7 +22,7 @@ ext.qupathVersion = gradle.ext.qupathVersion
 
 // TODO: Specify the Java version compatible with the extension
 // Generally 11 for QuPath v0.4.3, but will be 17 for QuPath v0.5.0
-ext.qupathJavaVersion = 11
+ext.qupathJavaVersion = 17
 
 /**
  * Define dependencies.
@@ -38,6 +40,9 @@ dependencies {
     // Main QuPath user interface jar.
     // Automatically includes other QuPath jars as subdependencies.
     shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+
+    // QuPath FX utils
+    shadow libs.qupath.fxtras
 
     // For logging - the version comes from QuPath's version catalog at
     // https://github.com/qupath/qupath/blob/main/gradle/libs.versions.toml

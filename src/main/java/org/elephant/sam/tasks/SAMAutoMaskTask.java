@@ -109,7 +109,11 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
                 logger.warn("Cannot use non-RGB image server for SAM auto mask!");
         }
         if (this.renderedServer == null) {
-            this.renderedServer = Utils.createRenderedServer(viewer);
+            try {
+                this.renderedServer = Utils.createRenderedServer(viewer);
+            } catch (IOException e) {
+                logger.error("Failed to create rendered server", e);
+            }
         }
 
         // Find the region and downsample currently used within the viewer

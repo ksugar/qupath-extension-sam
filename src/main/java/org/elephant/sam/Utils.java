@@ -183,7 +183,8 @@ public class Utils {
      * @return the quality score, or null if no score could be found
      */
     static Double getSAMQuality(PathObject pathObject) {
-        return pathObject.getMeasurements().getOrDefault(SAM_QUALITY_MEASUREMENT, null);
+        return (Double) pathObject.getMeasurements()
+                .getOrDefault(SAM_QUALITY_MEASUREMENT, null);
     }
 
     /**
@@ -204,8 +205,9 @@ public class Utils {
      * 
      * @param viewer
      * @return the image server
+     * @throws IOException
      */
-    public static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) {
+    public static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) throws IOException {
         return new RenderedImageServer.Builder(viewer.getImageData())
                 .store(viewer.getImageRegionStore())
                 .renderer(viewer.getImageDisplay())

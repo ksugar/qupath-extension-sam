@@ -22,7 +22,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import qupath.lib.gui.ActionTools;
+import qupath.lib.gui.actions.ActionTools;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.tools.PathTools;
 import qupath.lib.objects.classes.PathClass;
@@ -73,14 +73,14 @@ public class SAMPromptPane extends GridPane {
     }
 
     private void addCommandPane(int row) {
-        Action actionRectangle = command.getQuPath().getToolAction(PathTools.RECTANGLE);
-        ToggleButton btnRectangle = ActionTools.createToggleButton(actionRectangle, true);
+        Action actionRectangle = command.getQuPath().getToolManager().getToolAction(PathTools.RECTANGLE);
+        ToggleButton btnRectangle = ActionTools.createToggleButtonWithGraphicOnly(actionRectangle);
 
-        Action actionPoints = command.getQuPath().getToolAction(PathTools.POINTS);
-        ToggleButton btnPoints = ActionTools.createToggleButton(actionPoints, true);
+        Action actionPoints = command.getQuPath().getToolManager().getToolAction(PathTools.POINTS);
+        ToggleButton btnPoints = ActionTools.createToggleButtonWithGraphicOnly(actionPoints);
 
-        Action actionMove = command.getQuPath().getToolAction(PathTools.MOVE);
-        ToggleButton btnMove = ActionTools.createToggleButton(actionMove, true);
+        Action actionMove = command.getQuPath().getToolManager().getToolAction(PathTools.MOVE);
+        ToggleButton btnMove = ActionTools.createToggleButtonWithGraphicOnly(actionMove);
 
         Label label = new Label("Draw prompts");
         label.setTooltip(new Tooltip("Draw foreground or background prompts.\n" +
@@ -90,14 +90,14 @@ public class SAMPromptPane extends GridPane {
                 "Draw foreground prompt.\n" +
                         "Requires rectangle or point tool to be selected."));
         radioForeground.disableProperty().bind(
-                command.getQuPath().selectedToolProperty().isNotEqualTo(PathTools.POINTS).and(
-                        command.getQuPath().selectedToolProperty().isNotEqualTo(PathTools.RECTANGLE)));
+                command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.POINTS).and(
+                        command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.RECTANGLE)));
         RadioButton radioBackground = new RadioButton("Background");
         radioBackground.setTooltip(new Tooltip(
                 "Draw background prompt.\n" +
                         "Requires point tool to be selected."));
         radioBackground.disableProperty()
-                .bind(command.getQuPath().selectedToolProperty().isNotEqualTo(PathTools.POINTS));
+                .bind(command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.POINTS));
         ObjectProperty<PathClass> autoAnnotation = PathPrefs.autoSetAnnotationClassProperty();
         if (autoAnnotation.get() != null && PathClassTools.isIgnoredClass(autoAnnotation.get()))
             radioBackground.setSelected(true);

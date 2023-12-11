@@ -204,8 +204,9 @@ public class Utils {
      * 
      * @param viewer
      * @return the image server
+     * @throws IOException
      */
-    public static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) {
+    public static ImageServer<BufferedImage> createRenderedServer(QuPathViewer viewer) throws IOException {
         return new RenderedImageServer.Builder(viewer.getImageData())
                 .store(viewer.getImageRegionStore())
                 .renderer(viewer.getImageDisplay())

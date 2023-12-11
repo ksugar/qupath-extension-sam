@@ -12,7 +12,13 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.5.0/qupath-extension-sam-0.5.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+
+Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
+
+<img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-manager.png" width="768">
+
+If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
 
 Please note that you need to set up the server following the instructions in the link below.
 
@@ -24,7 +30,7 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.5.0/qupath-extension-sam-0.5.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
 3. Restart QuPath application.
 
 Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.4.0) server.  
@@ -166,6 +172,9 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
 ## Updates
+
+### v0.5.0
+- QuPath v0.5 support by [@Rylern](https://github.com/Rylern) and [@ksugar](https://github.com/ksugar) in [ksugar/samapi#12](https://github.com/ksugar/qupath-extension-sam/pull/12)
 
 ### v0.4.1
 - Properly send the checkpoint URL parameter

@@ -13,7 +13,7 @@ plugins {
 ext.moduleName = 'org.elephant.sam.qupath'
 
 // TODO: Define the extension version & provide a short description
-version = "0.4.1"
+version = "0.5.0"
 description = 'QuPath extension for Segment Anything Model (SAM)'
 
 // TODO: Specify the QuPath version, compatible with the extension.

@@ -37,7 +37,6 @@ public class SAMExtension implements QuPathExtension {
 	@ActionMenu("Extensions")
 	public class SAMCommands {
 
-		@ActionMenu("SAM")
 		public final Action actionSAMCommand;
 
 		/**
@@ -48,7 +47,7 @@ public class SAMExtension implements QuPathExtension {
 		 */
 		private SAMCommands(QuPathGUI qupath) {
 			SAMMainCommand samCommand = new SAMMainCommand(qupath);
-			actionSAMCommand = new Action("Launch SAM dialog.", event -> samCommand.run());
+			actionSAMCommand = new Action("SAM", event -> samCommand.run());
 		}
 
 	}

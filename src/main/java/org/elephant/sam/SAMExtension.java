@@ -3,14 +3,16 @@ package org.elephant.sam;
 import org.controlsfx.control.action.Action;
 import org.elephant.sam.commands.SAMMainCommand;
 import qupath.lib.gui.actions.ActionTools;
+import qupath.lib.common.Version;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.actions.annotations.ActionMenu;
+import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.extensions.QuPathExtension;
 
 /**
  * QuPath extension for SegmentAnything Model (SAM).
  */
-public class SAMExtension implements QuPathExtension {
+public class SAMExtension implements QuPathExtension, GitHubProject {
 
 	/**
 	 * Get the description of the extension.
@@ -50,6 +52,16 @@ public class SAMExtension implements QuPathExtension {
 			actionSAMCommand = new Action("SAM", event -> samCommand.run());
 		}
 
+	}
+
+	@Override
+	public GitHubRepo getRepository() {
+		return GitHubRepo.create(getName(), "ksugar", "qupath-extension-sam");
+	}
+
+	@Override
+	public Version getQuPathVersion() {
+		return Version.parse("0.5.0");
 	}
 
 }

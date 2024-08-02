@@ -147,28 +147,19 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         RegionRequest regionRequest;
         BufferedImage img;
         double downsample = this.viewerRegion.getDownsample();
+        // Updated in version 0.6.0
+        // For both rectangular and point prompts (including line vertices), use the current viewer region
+        regionRequest = this.viewerRegion;
+        img = renderedServer.readRegion(regionRequest);
         if (roi instanceof RectangleROI) {
             // For rectangular prompts, add some extra context from nearby
             RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(), downsample, roi);
-
-            regionRequest = roiRegion;
-            double minPadding = 128 / downsample; // We need to handle tiny input prompts (including single pixels)
-            if (padScale > 0.0)
-                regionRequest = regionRequest.pad2D(
-                        (int) Math.max(minPadding, Math.round(roiRegion.getWidth() * padScale)),
-                        (int) Math.max(minPadding, Math.round(roiRegion.getHeight() * padScale)));
-            regionRequest = regionRequest.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
-            img = renderedServer.readRegion(regionRequest);
-
             promptBuilder = promptBuilder.bbox(
                     (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / downsample),
                     (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / downsample),
                     (int) Math.round((roiRegion.getMaxX() - regionRequest.getMinX()) / downsample),
                     (int) Math.round((roiRegion.getMaxY() - regionRequest.getMinY()) / downsample));
         } else {
-            // For point prompts (including line vertices), use the current viewer region
-            regionRequest = this.viewerRegion;
-            img = renderedServer.readRegion(regionRequest);
             promptBuilder = promptBuilder.addToForeground(
                     Utils.getCoordinates(roi, regionRequest, img.getWidth(), img.getHeight()));
         }

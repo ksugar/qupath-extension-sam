@@ -5,7 +5,7 @@ package org.elephant.sam.entities;
  */
 public enum SAMType {
 
-    VIT_H, VIT_L, VIT_B, VIT_T;
+    VIT_H, VIT_L, VIT_B, VIT_T, SAM2_L, SAM2_BP, SAM2_S, SAM2_T;
 
     /**
      * Model name as used in the SAM code.
@@ -22,10 +22,17 @@ public enum SAMType {
                 return "vit_b";
             case VIT_T:
                 return "vit_t";
+            case SAM2_L:
+                return "sam2_l";
+            case SAM2_BP:
+                return "sam2_bp";
+            case SAM2_S:
+                return "sam2_s";
+            case SAM2_T:
+                return "sam2_t";
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }
-    
 
     @Override
     public String toString() {
@@ -39,6 +46,14 @@ public enum SAMType {
                 return "vit_b (base)";
             case VIT_T:
                 return "vit_t (mobile)";
+            case SAM2_L:
+                return "sam2_l (large)";
+            case SAM2_BP:
+                return "sam2_bp (base plus)";
+            case SAM2_S:
+                return "sam2_s (small)";
+            case SAM2_T:
+                return "sam2_t (tiny)";
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }

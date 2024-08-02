@@ -12,13 +12,13 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.5.0/qupath-extension-sam-0.5.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.6.0/qupath-extension-sam-0.6.0.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
 
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-manager.png" width="768">
 
-If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
+If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 
 Please note that you need to set up the server following the instructions in the link below.
 
@@ -30,10 +30,10 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.5.0/qupath-extension-sam-0.5.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar).
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.6.0/qupath-extension-sam-0.6.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 3. Restart QuPath application.
 
-Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.4.0) server.  
+Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.5.0) server.  
 To keep updated with the latest samapi server, follow the instructions [here](https://github.com/ksugar/samapi#update).
 
 ## Usage
@@ -69,7 +69,7 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 | key                  | value                                                                                                                                                                                                                                                                                                                                       |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Server               | URL of the server.                                                                                                                                                                                                                                                                                                                          |
-| SAM type             | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.                                                                                                                                                                                                                                                                |
+| SAM type             | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, `vit_t (mobile)`, `sam2_l (large)`, `sam2_bp (base plus)`, `sam2_s (small)`, or `sam2_t (tiny)`.                                                                                                                                                                                    |
 | SAM weights          | The SAM weights to use. The options are automatically fetched from the server.                                                                                                                                                                                                                                                              |
 | Output type          | If `Single Mask` is selected, the model will return single masks per prompt. If `Multi-mask` is selected, the model will return three masks per prompt. `Multi-mask (all)` keeps all three masks. One of the three masks is kept if the option `Multi-mask (largest)`, `Multi-mask (smallest)`, or `Multi-mask (best quality)` is selected. |
 | Display names        | Display the annotation names in the viewer. (this is a global preference)                                                                                                                                                                                                                                                                   |
@@ -90,7 +90,7 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 | key                            | value                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Server                         | URL of the server.                                                                                                                                                                                                                                                                                                                          |
-| SAM type                       | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.                                                                                                                                                                                                                                                                |
+| SAM type                       | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, `vit_t (mobile)`, `sam2_l (large)`, `sam2_bp (base plus)`, `sam2_s (small)`, or `sam2_t (tiny)`.                                                                                                                                                                                    |
 | SAM weights                    | The SAM weights to use. The options are automatically fetched from the server.                                                                                                                                                                                                                                                              |
 | Assign random colors           | If checked and no path class is set in `Auto set` setting, assign random colors to new (unclassified) objects created by SAM.                                                                                                                                                                                                               |
 | Assign names                   | If checked, assign names to identify new objects as created by SAM, including quality scores.                                                                                                                                                                                                                                               |
@@ -120,11 +120,11 @@ The weights file is downloaded from the URL and registered on the server. After 
 
 #### Parameters
 
-| key      | value                                                                         |
-| -------- | ----------------------------------------------------------------------------- |
-| SAM type | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, or `vit_t (mobile)`.  |
-| Name     | The SAM weights name to register. It needs to be unique in the same SAM type. |
-| URL      | The URL to the SAM weights file.                                              |
+| key      | value                                                                                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SAM type | One of `vit_h (huge)`, `vit_l (large)`, `vit_b (base)`, `vit_t (mobile)`, `sam2_l (large)`, `sam2_bp (base plus)`, `sam2_s (small)`, or `sam2_t (tiny)`. |
+| Name     | The SAM weights name to register. It needs to be unique in the same SAM type.                                                                            |
+| URL      | The URL to the SAM weights file.                                                                                                                         |
 
 #### SAM weights catalog
 
@@ -172,6 +172,10 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
 ## Updates
+
+### v0.6.0
+- Support [SAM2](https://ai.meta.com/sam2/) models. The SAM2 models are available from the [samapi](https://github.com/ksugar/samapi) server `v0.5.0` and above.
+- Use the current view for the encoder input in the rectangle mode.
 
 ### v0.5.0
 - QuPath v0.5 support by [@Rylern](https://github.com/Rylern) and [@ksugar](https://github.com/ksugar) in [ksugar/samapi#12](https://github.com/ksugar/qupath-extension-sam/pull/12)

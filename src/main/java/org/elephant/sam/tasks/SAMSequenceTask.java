@@ -6,7 +6,9 @@ import javafx.concurrent.Task;
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMOutput;
-import org.elephant.sam.parameters.SAMPromptParameters;
+import org.elephant.sam.entities.SAMPromptMode;
+import org.elephant.sam.parameters.SAM2VideoPromptObject;
+import org.elephant.sam.parameters.SAM2VideoPromptParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.awt.common.AwtTools;
@@ -16,11 +18,8 @@ import qupath.lib.images.servers.ImageServer;
 import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
-import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
-import qupath.lib.roi.RectangleROI;
-import qupath.lib.roi.interfaces.ROI;
 
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -31,23 +30,22 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
- * A task to perform SAM detection on a given image.
+ * A task to perform SAM video on a given sequence of images.
  * <p>
  * This task is designed to be run in a background thread, and will return a list of PathObjects representing the
  * detected objects.
  * <p>
  * The task will also add the detected objects to the hierarchy, and update the viewer to show the detected objects.
  */
-public class SAMDetectionTask extends Task<List<PathObject>> {
+public class SAMSequenceTask extends Task<List<PathObject>> {
 
-    private static final Logger logger = LoggerFactory.getLogger(SAMDetectionTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SAMSequenceTask.class);
 
     private final ImageData<BufferedImage> imageData;
     private ImageServer<BufferedImage> renderedServer;
@@ -56,30 +54,35 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
      * The field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private RegionRequest viewerRegion;
+    private final List<RegionRequest> viewerRegions = new ArrayList<>();
 
-    private final List<PathObject> foregroundObjects;
-    private final List<PathObject> backgroundObjects;
+    private final Map<Integer, List<SAM2VideoPromptObject>> objs;
 
     private final boolean setRandomColor;
     private final boolean setName;
-    private final SAMOutput outputType;
 
     private final String serverURL;
 
     private final SAMType model;
 
+    private final SAMPromptMode promptMode;
+
     private final String checkpointUrl;
 
-    private SAMDetectionTask(Builder builder) {
+    private final int planePosition;
+
+    private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
 
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
 
+        this.promptMode = builder.promptMode;
+        Objects.requireNonNull(promptMode, "Prompt mode must not be null!");
+
         QuPathViewer viewer = builder.viewer;
-        Objects.requireNonNull(builder, "Viewer must not be null!");
+        Objects.requireNonNull(viewer, "Viewer must not be null!");
 
         this.imageData = viewer.getImageData();
         Objects.requireNonNull(imageData, "ImageData must not be null!");
@@ -98,16 +101,34 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         }
 
         // Find the region and downsample currently used within the viewer
-        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                viewer.getTPosition());
-        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(),
-                region);
-        this.viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        if (promptMode == SAMPromptMode.XYZ) {
+            for (int z = 0; z < viewer.getServer().nZSlices(); z++) {
+                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z,
+                        viewer.getTPosition());
+                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                        viewer.getDownsampleFactor(),
+                        region);
+                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+                viewerRegions.add(viewerRegion);
+            }
+            planePosition = viewer.getTPosition();
+        } else if (promptMode == SAMPromptMode.XYT) {
+            for (int t = 0; t < viewer.getServer().nTimepoints(); t++) {
+                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
+                        t);
+                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                        viewer.getDownsampleFactor(),
+                        region);
+                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+                viewerRegions.add(viewerRegion);
+            }
+            planePosition = viewer.getZPosition();
+        } else {
+            throw new IllegalArgumentException("Unsupported prompt mode: " + promptMode);
+        }
 
-        this.foregroundObjects = new ArrayList<>(builder.foregroundObjects);
-        this.backgroundObjects = new ArrayList<>(builder.backgroundObjects);
+        this.objs = builder.objs;
 
-        this.outputType = builder.outputType;
         this.setName = builder.setName;
         this.setRandomColor = builder.setRandomColor;
         this.checkpointUrl = builder.checkpointUrl;
@@ -123,53 +144,21 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         }
     }
 
-    private List<PathObject> detectObjects() throws InterruptedException, IOException {
-        List<PathObject> detected = new ArrayList<>();
-        for (PathObject foreground : foregroundObjects) {
-            if (isCancelled())
-                break;
-            detected.addAll(detectObjects(foreground, backgroundObjects));
-        }
-        return detected;
-    }
-
-    private List<PathObject> detectObjects(PathObject foregroundObject, List<? extends PathObject> backgroundObjects)
+    private List<PathObject> detectObjects()
             throws InterruptedException, IOException {
 
-        SAMPromptParameters.Builder promptBuilder = SAMPromptParameters.builder(model)
+        final List<String> b64imgs = new ArrayList<>();
+        for (RegionRequest viewerRegion : viewerRegions) {
+            final BufferedImage img = renderedServer.readRegion(viewerRegion);
+            b64imgs.add(Utils.base64EncodePNG(img));
+        }
+
+        final SAM2VideoPromptParameters prompt = SAM2VideoPromptParameters.builder(model)
+                .objs(objs)
+                .b64imgs(b64imgs)
+                .axes(promptMode.toString())
+                .planePosition(planePosition)
                 .checkpointUrl(checkpointUrl)
-                .multimaskOutput(outputType != SAMOutput.SINGLE_MASK);
-
-        // Determine which part of the image we need & set foreground prompts
-        ROI roi = foregroundObject.getROI();
-        RegionRequest regionRequest;
-        BufferedImage img;
-        double downsample = this.viewerRegion.getDownsample();
-        // Updated in version 0.6.0
-        // For both rectangular and point prompts (including line vertices), use the current viewer region
-        regionRequest = this.viewerRegion;
-        img = renderedServer.readRegion(regionRequest);
-        if (roi instanceof RectangleROI) {
-            // For rectangular prompts, add some extra context from nearby
-            RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(), downsample, roi);
-            promptBuilder = promptBuilder.bbox(
-                    (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / downsample),
-                    (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / downsample),
-                    (int) Math.round((roiRegion.getMaxX() - regionRequest.getMinX()) / downsample),
-                    (int) Math.round((roiRegion.getMaxY() - regionRequest.getMinY()) / downsample));
-        } else {
-            promptBuilder = promptBuilder.addToForeground(
-                    Utils.getCoordinates(roi, regionRequest, img.getWidth(), img.getHeight()));
-        }
-
-        // Add any background prompts
-        for (PathObject background : backgroundObjects) {
-            promptBuilder = promptBuilder.addToBackground(
-                    Utils.getCoordinates(background.getROI(), regionRequest, img.getWidth(), img.getHeight()));
-        }
-
-        final SAMPromptParameters prompt = promptBuilder
-                .b64img(Utils.base64EncodePNG(img))
                 .build();
 
         if (isCancelled())
@@ -181,20 +170,20 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-            return parseResponse(response, regionRequest, foregroundObject.getPathClass());
+            return parseResponse(response, viewerRegions.get(0), null);
         } else {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
     }
 
-    private static HttpResponse<String> sendRequest(String serverURL, SAMPromptParameters prompt)
+    private static HttpResponse<String> sendRequest(String serverURL, SAM2VideoPromptParameters prompt)
             throws IOException, InterruptedException {
         final Gson gson = GsonTools.getInstance();
         final String body = gson.toJson(prompt);
         final HttpRequest request = HttpRequest.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(serverURL))
+                .uri(URI.create(String.format("%svideo/", serverURL)))
                 .header("accept", "application/json")
                 .header("Content-Type", "application/json; charset=utf-8")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
@@ -209,22 +198,21 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         AffineTransform transform = new AffineTransform();
         transform.translate(regionRequest.getMinX(), regionRequest.getMinY());
         transform.scale(regionRequest.getDownsample(), regionRequest.getDownsample());
-        ImagePlane plane = regionRequest.getImagePlane();
         // Retain the original classification, and set names/colors if required
         List<PathObject> updatedObjects = new ArrayList<>();
         for (PathObject pathObject : samObjects) {
-            pathObject = Utils.applyTransformAndClassification(pathObject, transform, pathClass, plane);
+            pathObject = Utils.applyTransformAndClassification(pathObject, transform, null, null);
             if (setName)
                 Utils.setNameForSAM(pathObject);
             if (setRandomColor && pathObject.getPathClass() == null)
                 Utils.setRandomColor(pathObject);
             updatedObjects.add(pathObject);
         }
-        return Utils.selectByOutputType(updatedObjects, outputType);
+        return Utils.selectByOutputType(updatedObjects, SAMOutput.SINGLE_MASK);
     }
 
     /**
-     * New builder for a SAM detection class.
+     * New builder for a SAM sequence class.
      * 
      * @param viewer
      *            the viewer containing the image to be processed
@@ -235,20 +223,19 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
     }
 
     /**
-     * Builder for a SAMDetectionTask class.
+     * Builder for a SAMSequenceTask class.
      */
     public static class Builder {
 
         private QuPathViewer viewer;
 
-        private Collection<PathObject> foregroundObjects = new LinkedHashSet<>();
-        private Collection<PathObject> backgroundObjects = new LinkedHashSet<>();
+        private Map<Integer, List<SAM2VideoPromptObject>> objs;
 
         private ImageServer<BufferedImage> server;
 
         private String serverURL;
         private SAMType model = SAMType.VIT_L;
-        private SAMOutput outputType = SAMOutput.SINGLE_MASK;
+        private SAMPromptMode promptMode = SAMPromptMode.XYZ;
         private boolean setRandomColor = true;
         private boolean setName = true;
         private String checkpointUrl;
@@ -281,38 +268,26 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         }
 
         /**
+         * Specify the SAM prompt mode to use.
+         * Default is SAMPromptMode.XYZ.
+         * 
+         * @param promptMode
+         * @return
+         */
+        public Builder promptMode(final SAMPromptMode promptMode) {
+            this.promptMode = promptMode;
+            return this;
+        }
+
+        /**
          * Add objects representing foreground prompts.
          * Each will be treated as a separate prompt.
          * 
          * @param foregroundObjects
          * @return this builder
          */
-        public Builder addForegroundPrompts(final Collection<? extends PathObject> foregroundObjects) {
-            this.foregroundObjects.addAll(foregroundObjects);
-            return this;
-        }
-
-        /**
-         * Add objects representing background prompts.
-         * Background prompts are use with all foreground prompts.
-         * 
-         * @param backgroundObjects
-         * @return this builder
-         */
-        public Builder addBackgroundPrompts(final Collection<? extends PathObject> backgroundObjects) {
-            this.backgroundObjects.addAll(backgroundObjects);
-            return this;
-        }
-
-        /**
-         * Optionally request the output type.
-         * Default is SAMOutput.SINGLE_MASK.
-         * 
-         * @param outputType
-         * @return this builder
-         */
-        public Builder outputType(final SAMOutput outputType) {
-            this.outputType = outputType;
+        public Builder objs(final Map<Integer, List<SAM2VideoPromptObject>> objs) {
+            this.objs = objs;
             return this;
         }
 
@@ -370,8 +345,8 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
          * 
          * @return
          */
-        public SAMDetectionTask build() {
-            return new SAMDetectionTask(this);
+        public SAMSequenceTask build() {
+            return new SAMSequenceTask(this);
         }
 
     }

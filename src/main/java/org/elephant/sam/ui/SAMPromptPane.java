@@ -1,11 +1,23 @@
 package org.elephant.sam.ui;
 
+import java.awt.Shape;
+import java.awt.image.BufferedImage;
+
 import org.controlsfx.control.action.Action;
 import org.elephant.sam.commands.SAMMainCommand;
 import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.entities.SAMPromptMode;
+import org.elephant.sam.entities.SAMType;
 
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Button;
@@ -19,12 +31,17 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import qupath.lib.gui.actions.ActionTools;
 import qupath.lib.gui.prefs.PathPrefs;
+import qupath.lib.gui.viewer.QuPathViewer;
+import qupath.lib.gui.viewer.QuPathViewerListener;
 import qupath.lib.gui.viewer.tools.PathTools;
+import qupath.lib.images.ImageData;
+import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassTools;
 
@@ -34,6 +51,50 @@ import qupath.lib.objects.classes.PathClassTools;
 public class SAMPromptPane extends GridPane {
 
     private final SAMMainCommand command;
+
+    private final ObjectProperty<SAMType> samTypeProperty = new SimpleObjectProperty<>();
+
+    private final ObjectProperty<SAMPromptMode> samPromptModeProperty = new SimpleObjectProperty<>();
+
+    private final ObjectProperty<QuPathViewer> viewerProperty = new SimpleObjectProperty<>();
+
+    private final BooleanBinding isImageOpenBinding = Bindings.createBooleanBinding(
+            () -> viewerProperty.get() != null && viewerProperty.get().hasServer(), viewerProperty);
+
+    /**
+     * Integer property to have Z slices.
+     */
+    private final IntegerProperty nZSlicesProperty = new SimpleIntegerProperty();
+
+    /**
+     * Integer property to have timepoints.
+     */
+    private final IntegerProperty nTimePointsProperty = new SimpleIntegerProperty();
+
+    /**
+     * Flag to indicate that the SAM type is compatible with video prediction.
+     */
+    private final BooleanBinding isVideoCompatibleBinding = Bindings.createBooleanBinding(
+            () -> samTypeProperty.get() != null && samTypeProperty.get().isVideoCompatible(), samTypeProperty);
+
+    /**
+     * Flag to indicate that the 2D (XY) is available.
+     */
+    private final BooleanBinding isXYAvailable = isImageOpenBinding;
+
+    /**
+     * Flag to indicate that the 3D (XYZ) is available.
+     */
+    private final BooleanBinding isXYZAvailable = isImageOpenBinding
+            .and(isVideoCompatibleBinding)
+            .and(nZSlicesProperty.greaterThan(1));
+
+    /**
+     * Flag to indicate that the time lapse (XYT) is available.
+     */
+    private final BooleanBinding isXYTAvailable = isImageOpenBinding
+            .and(isVideoCompatibleBinding)
+            .and(nTimePointsProperty.greaterThan(1));
 
     /**
      * Create a new pane for the SAM prompt.
@@ -45,6 +106,38 @@ public class SAMPromptPane extends GridPane {
         super();
 
         this.command = command;
+        samTypeProperty.bind(command.getSamTypeProperty());
+        samPromptModeProperty.bindBidirectional(command.getSamPromptModeProperty());
+        command.getQuPath().getViewer().addViewerListener(new QuPathViewerListener() {
+
+            @Override
+            public void imageDataChanged(QuPathViewer viewer, ImageData<BufferedImage> imageDataOld,
+                    ImageData<BufferedImage> imageDataNew) {
+                viewerProperty.set(viewer);
+                if (viewer.getServer() == null) {
+                    nZSlicesProperty.set(0);
+                    nTimePointsProperty.set(0);
+                } else {
+                    nZSlicesProperty.set(viewer.getServer().nZSlices());
+                    nTimePointsProperty.set(viewer.getServer().nTimepoints());
+                }
+            }
+
+            @Override
+            public void visibleRegionChanged(QuPathViewer viewer, Shape shape) {
+                // Do nothing
+            }
+
+            @Override
+            public void selectedObjectChanged(QuPathViewer viewer, PathObject pathObjectSelected) {
+                // Do nothing
+            }
+
+            @Override
+            public void viewerClosed(QuPathViewer viewer) {
+                viewerProperty.set(viewer);
+            }
+        });
 
         int row = 0;
 
@@ -54,6 +147,10 @@ public class SAMPromptPane extends GridPane {
 
         addOutputTypePrompt(row++);
         addCheckboxes(row++);
+
+        addSeparator(row++);
+
+        addModePane(row++);
 
         addSeparator(row++);
 
@@ -184,6 +281,73 @@ public class SAMPromptPane extends GridPane {
         if (tooltip != null)
             cb.setTooltip(new Tooltip(tooltip));
         return cb;
+    }
+
+    private void addModePane(int row) {
+        Label label = new Label("Mode");
+        label.setTooltip(new Tooltip("Select detection mode (2D / 3D / 2D+T)."));
+        RadioButton radioModeXY = new RadioButton(SAMPromptMode.XY.toString());
+        radioModeXY.setTooltip(new Tooltip("2D detection mode."));
+        radioModeXY.disableProperty().bind(isXYAvailable.not());
+        RadioButton radioModeXYZ = new RadioButton(SAMPromptMode.XYZ.toString());
+        radioModeXYZ.setTooltip(new Tooltip("3D detection mode (only available with SAM2-compatible models)."));
+        radioModeXYZ.disableProperty().bind(isXYZAvailable.not());
+        RadioButton radioModeXYT = new RadioButton(SAMPromptMode.XYT.toString());
+        radioModeXYT.setTooltip(new Tooltip("2D+T detection mode (only available with SAM2-compatible models)."));
+        radioModeXYT.disableProperty().bind(isXYTAvailable.not());
+        if (samPromptModeProperty.get() == SAMPromptMode.XY) {
+            radioModeXY.setSelected(true);
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            radioModeXYZ.setSelected(true);
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            radioModeXYT.setSelected(true);
+        }
+        ToggleGroup group = new ToggleGroup();
+        group.getToggles().setAll(radioModeXY, radioModeXYZ, radioModeXYT);
+
+        ChangeListener<Boolean> disableListener = (ObservableValue<? extends Boolean> observable, Boolean oldValue,
+                Boolean newValue) -> {
+            RadioButton rb = (RadioButton) ((BooleanProperty) observable).getBean();
+
+            // Optionally, handle the selection state if required
+            if (newValue && rb.isSelected()) {
+                // If the disabled button is selected, select another button in the group
+                group.getToggles().stream()
+                        .filter(toggle -> !((RadioButton) toggle).isDisable())
+                        .findFirst()
+                        .ifPresent(toggle -> toggle.setSelected(true));
+            }
+        };
+
+        radioModeXY.disableProperty().addListener(disableListener);
+        radioModeXYZ.disableProperty().addListener(disableListener);
+        radioModeXYT.disableProperty().addListener(disableListener);
+
+        // Add a listener to the ObjectProperty to handle changes in the selected toggle
+        group.selectedToggleProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null) {
+                RadioButton selectedRadioButton = (RadioButton) newValue;
+                if (selectedRadioButton.getText().equals(SAMPromptMode.XY.toString())) {
+                    samPromptModeProperty.set(SAMPromptMode.XY);
+                } else if (selectedRadioButton.getText().equals(SAMPromptMode.XYZ.toString())) {
+                    samPromptModeProperty.set(SAMPromptMode.XYZ);
+                } else if (selectedRadioButton.getText().equals(SAMPromptMode.XYT.toString())) {
+                    samPromptModeProperty.set(SAMPromptMode.XYT);
+                }
+            }
+        });
+
+        HBox hbox = new HBox(radioModeXY, radioModeXYZ, radioModeXYT);
+        hbox.setSpacing(SAMUIUtils.H_GAP);
+        hbox.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setFillWidth(hbox, true);
+        int col = 0;
+        GridPane modePane = new GridPane();
+        modePane.add(label, col++, 0);
+        modePane.add(hbox, col++, 0);
+        modePane.setHgap(SAMUIUtils.H_GAP);
+
+        add(modePane, 0, row, GridPane.REMAINING, 1);
     }
 
     private void addButtons(int row) {

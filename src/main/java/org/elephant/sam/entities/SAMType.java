@@ -57,4 +57,16 @@ public enum SAMType {
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }
+
+    public boolean isVideoCompatible() {
+        switch (this) {
+            case SAM2_L:
+            case SAM2_BP:
+            case SAM2_S:
+            case SAM2_T:
+                return true;
+            default:
+                return false;
+        }
+    }
 }

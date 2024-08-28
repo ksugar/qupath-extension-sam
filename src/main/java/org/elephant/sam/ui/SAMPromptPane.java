@@ -11,6 +11,8 @@ import org.elephant.sam.entities.SAMType;
 
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
+import javafx.beans.binding.IntegerBinding;
+import javafx.beans.binding.StringBinding;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
@@ -20,12 +22,15 @@ import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.Separator;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
@@ -95,6 +100,42 @@ public class SAMPromptPane extends GridPane {
     private final BooleanBinding isXYTAvailable = isImageOpenBinding
             .and(isVideoCompatibleBinding)
             .and(nTimePointsProperty.greaterThan(1));
+
+    /**
+     * Tooltip for the from field.
+     */
+    private final StringBinding fromIndexTooltipBinding = Bindings.createStringBinding(() -> {
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            return "The Z slice to start 3D detection mode.";
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            return "The timepoint to start 2D+T detection mode.";
+        } else {
+            return "This is not used in 2D detection mode.";
+        }
+    }, samPromptModeProperty);
+
+    /**
+     * Tooltip for the to field.
+     */
+    private final StringBinding toIndexTooltipBinding = Bindings.createStringBinding(() -> {
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            return "The Z slice to end 3D detection mode.";
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            return "The timepoint to end 2D+T detection mode.";
+        } else {
+            return "This is not used in 2D detection mode.";
+        }
+    }, samPromptModeProperty);
+
+    private final IntegerBinding maxIndexBinding = Bindings.createIntegerBinding(() -> {
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            return Math.max(0, nZSlicesProperty.get() - 1);
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            return Math.max(0, nTimePointsProperty.get() - 1);
+        } else {
+            return 0;
+        }
+    }, samPromptModeProperty, nZSlicesProperty, nTimePointsProperty);
 
     /**
      * Create a new pane for the SAM prompt.
@@ -341,11 +382,53 @@ public class SAMPromptPane extends GridPane {
         hbox.setSpacing(SAMUIUtils.H_GAP);
         hbox.setMaxWidth(Double.MAX_VALUE);
         GridPane.setFillWidth(hbox, true);
+
+        Label fromIndexLabel = new Label("from index");
+        Spinner<Integer> fromIndexSpinner = new Spinner<>();
+        fromIndexSpinner.setEditable(true);
+        command.getFromIndexProperty().bind(fromIndexSpinner.valueProperty());
+        fromIndexSpinner.setTooltip(new Tooltip(fromIndexTooltipBinding.get()));
+        fromIndexTooltipBinding.addListener((observable, oldValue, newValue) -> {
+            fromIndexSpinner.setTooltip(new Tooltip(newValue));
+        });
+        fromIndexSpinner.setValueFactory(
+                new SpinnerValueFactory.IntegerSpinnerValueFactory(0, maxIndexBinding.get(), 0));
+        maxIndexBinding.addListener((obs, oldMax, newMax) -> {
+            final int max = newMax.intValue();
+            fromIndexSpinner.setValueFactory(
+                    new SpinnerValueFactory.IntegerSpinnerValueFactory(0, max, 0));
+        });
+
+        Label toIndexLabel = new Label("to index");
+        Spinner<Integer> toIndexSpinner = new Spinner<>();
+        toIndexSpinner.setEditable(true);
+        command.getToIndexProperty().bind(toIndexSpinner.valueProperty());
+        toIndexSpinner.setTooltip(new Tooltip(toIndexTooltipBinding.get()));
+        toIndexTooltipBinding.addListener((observable, oldValue, newValue) -> {
+            toIndexSpinner.setTooltip(new Tooltip(newValue));
+        });
+        toIndexSpinner.setValueFactory(
+                new SpinnerValueFactory.IntegerSpinnerValueFactory(0, maxIndexBinding.get(), maxIndexBinding.get()));
+        maxIndexBinding.addListener((obs, oldMax, newMax) -> {
+            final int max = newMax.intValue();
+            toIndexSpinner.setValueFactory(
+                    new SpinnerValueFactory.IntegerSpinnerValueFactory(0, max, max));
+        });
+
+        HBox hboxFromTo = new HBox(fromIndexLabel, fromIndexSpinner, toIndexLabel, toIndexSpinner);
+        hboxFromTo.visibleProperty().bind(samPromptModeProperty.isNotEqualTo(SAMPromptMode.XY));
+        hboxFromTo.setSpacing(SAMUIUtils.H_GAP);
+        hboxFromTo.setMaxWidth(Double.MAX_VALUE);
+        hboxFromTo.setAlignment(Pos.CENTER_LEFT);
+        GridPane.setFillWidth(hboxFromTo, true);
+
         int col = 0;
         GridPane modePane = new GridPane();
         modePane.add(label, col++, 0);
         modePane.add(hbox, col++, 0);
         modePane.setHgap(SAMUIUtils.H_GAP);
+        modePane.add(hboxFromTo, 0, 1, GridPane.REMAINING, 1);
+        modePane.setVgap(SAMUIUtils.V_GAP);
 
         add(modePane, 0, row, GridPane.REMAINING, 1);
     }
@@ -359,7 +442,8 @@ public class SAMPromptPane extends GridPane {
 
         ToggleButton btnLiveMode = new ToggleButton("Live mode");
         command.getLiveModeProperty().bindBidirectional(btnLiveMode.selectedProperty());
-        btnLiveMode.disableProperty().bind(command.getDisableRunning());
+        btnLiveMode.disableProperty().bind(
+                command.getDisableRunning().or(samPromptModeProperty.isNotEqualTo(SAMPromptMode.XY)));
         btnLiveMode.setMaxWidth(Double.MAX_VALUE);
         btnLiveMode.setTooltip(new Tooltip(
                 "Turn on live detection to run the model on every new foreground annotation (point or rectangle)"));

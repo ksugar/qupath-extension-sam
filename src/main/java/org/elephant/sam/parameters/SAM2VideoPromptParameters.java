@@ -20,6 +20,10 @@ public class SAM2VideoPromptParameters {
 	@SuppressWarnings("unused")
 	private int plane_position;
 	@SuppressWarnings("unused")
+	private Integer start_frame_idx;
+	@SuppressWarnings("unused")
+	private Integer max_frame_num_to_track;
+	@SuppressWarnings("unused")
 	private Map<Integer, List<SAM2VideoPromptObject>> objs;
 	@SuppressWarnings("unused")
 	private String checkpointUrl;
@@ -31,6 +35,8 @@ public class SAM2VideoPromptParameters {
 		this.b64imgs = builder.b64imgs;
 		this.axes = builder.axes;
 		this.plane_position = builder.planePosition;
+		this.start_frame_idx = builder.startFrameIdx;
+		this.max_frame_num_to_track = builder.maxFrameNumToTrack;
 		this.objs = builder.objs;
 		this.checkpointUrl = builder.checkpointUrl;
 	}
@@ -51,6 +57,8 @@ public class SAM2VideoPromptParameters {
 		private List<String> b64imgs;
 		private String axes;
 		private int planePosition;
+		private Integer startFrameIdx = 0;
+		private Integer maxFrameNumToTrack = null;
 		private Map<Integer, List<SAM2VideoPromptObject>> objs;
 		private String checkpointUrl;
 
@@ -99,6 +107,28 @@ public class SAM2VideoPromptParameters {
 		 */
 		public Builder planePosition(final int planePosition) {
 			this.planePosition = planePosition;
+			return this;
+		}
+
+		/**
+		 * Start frame index (optional).
+		 * 
+		 * @param startFrameIdx
+		 * @return this builder
+		 */
+		public Builder startFrameIdx(final int startFrameIdx) {
+			this.startFrameIdx = startFrameIdx;
+			return this;
+		}
+
+		/**
+		 * Maximum number of frames to track (optional).
+		 * 
+		 * @param maxFrameNumToTrack
+		 * @return this builder
+		 */
+		public Builder maxFrameNumToTrack(final int maxFrameNumToTrack) {
+			this.maxFrameNumToTrack = maxFrameNumToTrack;
 			return this;
 		}
 

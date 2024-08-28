@@ -40,6 +40,7 @@ import javafx.beans.property.LongProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -62,6 +63,7 @@ import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
 import qupath.lib.objects.PathObject;
+import qupath.lib.objects.PathObjectConnections;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassTools;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
@@ -352,6 +354,24 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * From index used in runVideo.
+     */
+    private final IntegerProperty fromIndexProperty = new SimpleIntegerProperty(0);
+
+    public IntegerProperty getFromIndexProperty() {
+        return fromIndexProperty;
+    }
+
+    /**
+     * To index used in runVideo.
+     */
+    private final IntegerProperty toIndexProperty = new SimpleIntegerProperty(0);
+
+    public IntegerProperty getToIndexProperty() {
+        return toIndexProperty;
+    }
+
+    /**
      * Current image data
      */
     private final ObjectProperty<ImageData<BufferedImage>> imageDataProperty = new SimpleObjectProperty<>();
@@ -514,8 +534,8 @@ public class SAMMainCommand implements Runnable {
         Platform.runLater(() -> {
             fixStageSizeOnFirstShow(stage);
         });
-        stage.setResizable(false);
         stage.setTitle(TITLE);
+        stage.setResizable(true);
         stage.initOwner(qupath.getStage());
         stage.setOnCloseRequest(event -> {
             hideStage();
@@ -674,6 +694,7 @@ public class SAMMainCommand implements Runnable {
                 regionRequest = regionRequests.getOrDefault(objsKey,
                         Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), roi.getT()));
             }
+            objsKey -= fromIndexProperty.get();
             if (roi instanceof PointsROI) {
                 PointsROI pointsROI = (PointsROI) roi;
                 if (isForegroundObject(topLevelObject)) {
@@ -721,6 +742,8 @@ public class SAMMainCommand implements Runnable {
                 .promptMode(samPromptModeProperty.get())
                 .objs(objs)
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
+                .fromIndex(fromIndexProperty.get())
+                .toIndex(toIndexProperty.get())
                 .build();
         task.setOnSucceeded(event -> {
             List<PathObject> detected = task.getValue();
@@ -733,7 +756,9 @@ public class SAMMainCommand implements Runnable {
                             hierarchy.getSelectionModel().clearSelection();
                             hierarchy.removeObjects(topLevelObjects, false);
                         }
-                        hierarchy.addObjects(detected);
+                        PathObject firstPathObject = detected.get(0);
+                        firstPathObject.addChildObjects(detected);
+                        hierarchy.addObject(firstPathObject);
                         hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
                     });
                 } else {

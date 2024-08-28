@@ -18,6 +18,7 @@ import qupath.lib.images.servers.ImageServer;
 import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
+import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 
@@ -59,6 +60,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     private final Map<Integer, List<SAM2VideoPromptObject>> objs;
 
     private final boolean setRandomColor;
+
     private final boolean setName;
 
     private final String serverURL;
@@ -70,6 +72,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     private final String checkpointUrl;
 
     private final int planePosition;
+
+    private final int fromIndex;
 
     private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
@@ -102,7 +106,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
         // Find the region and downsample currently used within the viewer
         if (promptMode == SAMPromptMode.XYZ) {
-            for (int z = 0; z < viewer.getServer().nZSlices(); z++) {
+            for (int z = builder.fromIndex; z <= builder.toIndex; z++) {
                 ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z,
                         viewer.getTPosition());
                 RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
@@ -113,7 +117,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             }
             planePosition = viewer.getTPosition();
         } else if (promptMode == SAMPromptMode.XYT) {
-            for (int t = 0; t < viewer.getServer().nTimepoints(); t++) {
+            for (int t = builder.fromIndex; t <= builder.toIndex; t++) {
                 ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
                         t);
                 RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
@@ -126,7 +130,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         } else {
             throw new IllegalArgumentException("Unsupported prompt mode: " + promptMode);
         }
-
+        this.fromIndex = builder.fromIndex;
         this.objs = builder.objs;
 
         this.setName = builder.setName;
@@ -201,7 +205,13 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         // Retain the original classification, and set names/colors if required
         List<PathObject> updatedObjects = new ArrayList<>();
         for (PathObject pathObject : samObjects) {
-            pathObject = Utils.applyTransformAndClassification(pathObject, transform, null, null);
+            ImagePlane plane = pathObject.getROI().getImagePlane();
+            if (promptMode == SAMPromptMode.XYZ) {
+                plane = ImagePlane.getPlane(fromIndex + plane.getZ(), plane.getT());
+            } else if (promptMode == SAMPromptMode.XYT) {
+                plane = ImagePlane.getPlane(plane.getZ(), fromIndex + plane.getT());
+            }
+            pathObject = Utils.applyTransformAndClassification(pathObject, transform, null, plane);
             if (setName)
                 Utils.setNameForSAM(pathObject);
             if (setRandomColor && pathObject.getPathClass() == null)
@@ -239,6 +249,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private boolean setRandomColor = true;
         private boolean setName = true;
         private String checkpointUrl;
+        private int fromIndex;
+        private int toIndex;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -337,6 +349,28 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder checkpointUrl(final String checkpointUrl) {
             this.checkpointUrl = checkpointUrl;
+            return this;
+        }
+
+        /**
+         * Specify the index to start from.
+         * 
+         * @param fromIndex
+         * @return this builder
+         */
+        public Builder fromIndex(final int fromIndex) {
+            this.fromIndex = fromIndex;
+            return this;
+        }
+
+        /**
+         * Specify the index to end at.
+         * 
+         * @param toIndex
+         * @return this builder
+         */
+        public Builder toIndex(final int toIndex) {
+            this.toIndex = toIndex;
             return this;
         }
 

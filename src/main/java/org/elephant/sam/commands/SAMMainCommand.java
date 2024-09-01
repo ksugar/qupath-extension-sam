@@ -63,7 +63,6 @@ import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
 import qupath.lib.objects.PathObject;
-import qupath.lib.objects.PathObjectConnections;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassTools;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
@@ -735,6 +734,10 @@ public class SAMMainCommand implements Runnable {
             List<SAM2VideoPromptObject> objectList = objs.getOrDefault(objsKey, new ArrayList<>());
             objectList.add(sam2VideoPromptObject);
             objs.put(objsKey, objectList);
+        }
+        if (objs.isEmpty()) {
+            updateInfoText("No prompts specified");
+            return;
         }
         SAMSequenceTask task = SAMSequenceTask.builder(qupath.getViewer())
                 .serverURL(serverURLProperty.get())

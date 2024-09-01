@@ -137,6 +137,17 @@ public class SAMPromptPane extends GridPane {
         }
     }, samPromptModeProperty, nZSlicesProperty, nTimePointsProperty);
 
+    private void viewerUpdated(QuPathViewer viewer) {
+        viewerProperty.set(viewer);
+        if (viewer.getServer() == null) {
+            nZSlicesProperty.set(0);
+            nTimePointsProperty.set(0);
+        } else {
+            nZSlicesProperty.set(viewer.getServer().nZSlices());
+            nTimePointsProperty.set(viewer.getServer().nTimepoints());
+        }
+    }
+
     /**
      * Create a new pane for the SAM prompt.
      * 
@@ -154,14 +165,7 @@ public class SAMPromptPane extends GridPane {
             @Override
             public void imageDataChanged(QuPathViewer viewer, ImageData<BufferedImage> imageDataOld,
                     ImageData<BufferedImage> imageDataNew) {
-                viewerProperty.set(viewer);
-                if (viewer.getServer() == null) {
-                    nZSlicesProperty.set(0);
-                    nTimePointsProperty.set(0);
-                } else {
-                    nZSlicesProperty.set(viewer.getServer().nZSlices());
-                    nTimePointsProperty.set(viewer.getServer().nTimepoints());
-                }
+                viewerUpdated(viewer);
             }
 
             @Override
@@ -208,6 +212,7 @@ public class SAMPromptPane extends GridPane {
                 constraints.setHgrow(Priority.ALWAYS);
             getColumnConstraints().add(constraints);
         }
+        viewerUpdated(command.getQuPath().getViewer());
     }
 
     private void addCommandPane(int row) {

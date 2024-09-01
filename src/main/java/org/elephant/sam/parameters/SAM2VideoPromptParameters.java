@@ -14,7 +14,7 @@ public class SAM2VideoPromptParameters {
 	@SuppressWarnings("unused")
 	private String type;
 	@SuppressWarnings("unused")
-	private List<String> b64imgs;
+	private String dirname;
 	@SuppressWarnings("unused")
 	private String axes;
 	@SuppressWarnings("unused")
@@ -30,9 +30,9 @@ public class SAM2VideoPromptParameters {
 
 	private SAM2VideoPromptParameters(final Builder builder) {
 		Objects.requireNonNull(builder.type, "Model type must be specified");
-		Objects.requireNonNull(builder.b64imgs, "Input images must be specified");
+		Objects.requireNonNull(builder.dirname, "Directory name must be specified");
 		this.type = builder.type;
-		this.b64imgs = builder.b64imgs;
+		this.dirname = builder.dirname;
 		this.axes = builder.axes;
 		this.plane_position = builder.planePosition;
 		this.start_frame_idx = builder.startFrameIdx;
@@ -54,7 +54,7 @@ public class SAM2VideoPromptParameters {
 
 	public static class Builder {
 		private String type;
-		private List<String> b64imgs;
+		private String dirname;
 		private String axes;
 		private int planePosition;
 		private Integer startFrameIdx = 0;
@@ -67,13 +67,13 @@ public class SAM2VideoPromptParameters {
 		};
 
 		/**
-		 * Base64-encoded images (required).
+		 * Diretory name containing the video files on the server (required).
 		 * 
-		 * @param b64imgs
+		 * @param dirname
 		 * @return this builder
 		 */
-		public Builder b64imgs(final List<String> b64imgs) {
-			this.b64imgs = b64imgs;
+		public Builder dirname(final String dirname) {
+			this.dirname = dirname;
 			return this;
 		}
 

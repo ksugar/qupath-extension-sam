@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.http.MultipartBodyBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -379,6 +380,32 @@ public class Utils {
      */
     public static boolean isPotentialPromptObject(PathObject pathObject) {
         return pathObject.isAnnotation() && pathObject.hasROI() && !pathObject.getROI().isEmpty();
+    }
+
+    /**
+     * Converts a BufferedImage to a JPEG byte array.
+     *
+     * @param image
+     *            The BufferedImage to convert.
+     * @return A byte array containing the JPEG data.
+     * @throws IOException
+     *             If an error occurs during writing.
+     */
+    public static byte[] bufferedImageToJpegBytes(BufferedImage image) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "jpg", baos);
+            return baos.toByteArray();
+        }
+    }
+
+    public static byte[] createImageUploadMultipartBody(String boundary, String dirname, String filename,
+            BufferedImage image)
+            throws IOException {
+        byte[] imageBytes = bufferedImageToJpegBytes(image);
+        final MultipartBodyBuilder builder = new MultipartBodyBuilder(boundary);
+        builder.addFormField("dirname", dirname);
+        builder.addFilePart("file", filename, "image/jpeg", imageBytes);
+        return builder.build();
     }
 
 }

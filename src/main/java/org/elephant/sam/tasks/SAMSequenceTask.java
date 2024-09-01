@@ -35,6 +35,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 /**
  * A task to perform SAM video on a given sequence of images.
@@ -138,28 +141,68 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         this.checkpointUrl = builder.checkpointUrl;
     }
 
+    private boolean uploadImages(String dirname) throws IOException, InterruptedException {
+        int paddingWidth = String.valueOf(viewerRegions.size()).length();
+        String filenameFormat = String.format("%%0%dd.jpg", paddingWidth);
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        IntStream.range(0, viewerRegions.size()).parallel().forEach(i -> {
+            if (cancelled.get())
+                return;
+            final String boundary = "----------------" + System.currentTimeMillis();
+            try {
+                final BufferedImage img = renderedServer.readRegion(viewerRegions.get(i));
+                final byte[] multipartBody = Utils.createImageUploadMultipartBody(boundary, dirname,
+                        String.format(filenameFormat, i), img);
+                HttpClient client = HttpClient.newHttpClient();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .uri(URI.create(String.format("%supload/", serverURL)))
+                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                        .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                        .build();
+                System.out.println(request.toString());
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != HttpURLConnection.HTTP_OK) {
+                    logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
+                    cancelled.set(true);
+                } else {
+                    logger.info("Uploaded image {}", response.body());
+                }
+            } catch (IOException e) {
+                logger.error("Failed to upload image", e);
+                cancelled.set(true);
+            } catch (InterruptedException e) {
+                logger.warn("Interrupted while uploading images", e);
+                cancelled.set(true);
+            }
+        });
+        if (cancelled.get()) {
+            return false;
+        }
+        return true;
+    }
+
     @Override
     protected List<PathObject> call() throws Exception {
         try {
-            return detectObjects();
+            String dirname = UUID.randomUUID().toString();
+            if (uploadImages(dirname)) {
+                return detectObjects(dirname);
+            } else {
+                cancel();
+                return Collections.emptyList();
+            }
         } catch (InterruptedException e) {
             logger.warn("Interrupted while detecting objects", e);
             return Collections.emptyList();
         }
     }
 
-    private List<PathObject> detectObjects()
+    private List<PathObject> detectObjects(String dirname)
             throws InterruptedException, IOException {
-
-        final List<String> b64imgs = new ArrayList<>();
-        for (RegionRequest viewerRegion : viewerRegions) {
-            final BufferedImage img = renderedServer.readRegion(viewerRegion);
-            b64imgs.add(Utils.base64EncodePNG(img));
-        }
-
         final SAM2VideoPromptParameters prompt = SAM2VideoPromptParameters.builder(model)
                 .objs(objs)
-                .b64imgs(b64imgs)
+                .dirname(dirname)
                 .axes(promptMode.toString())
                 .planePosition(planePosition)
                 .checkpointUrl(checkpointUrl)

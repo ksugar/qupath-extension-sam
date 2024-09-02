@@ -146,6 +146,7 @@ public class SAMPromptPane extends GridPane {
             nZSlicesProperty.set(viewer.getServer().nZSlices());
             nTimePointsProperty.set(viewer.getServer().nTimepoints());
         }
+        isImageOpenBinding.invalidate();
     }
 
     /**
@@ -180,7 +181,7 @@ public class SAMPromptPane extends GridPane {
 
             @Override
             public void viewerClosed(QuPathViewer viewer) {
-                viewerProperty.set(viewer);
+                viewerUpdated(viewer);
             }
         });
 

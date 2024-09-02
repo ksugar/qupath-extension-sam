@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 /**
@@ -77,6 +78,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     private final int planePosition;
 
     private final int fromIndex;
+
+    private final Map<Integer, PathClass> indexToPathClass;
 
     private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
@@ -139,13 +142,16 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         this.setName = builder.setName;
         this.setRandomColor = builder.setRandomColor;
         this.checkpointUrl = builder.checkpointUrl;
+        this.indexToPathClass = builder.indexToPathClass;
     }
 
     private boolean uploadImages(String dirname) throws IOException, InterruptedException {
         int paddingWidth = String.valueOf(viewerRegions.size()).length();
         String filenameFormat = String.format("%%0%dd.jpg", paddingWidth);
         AtomicBoolean cancelled = new AtomicBoolean(false);
-        IntStream.range(0, viewerRegions.size()).parallel().forEach(i -> {
+        AtomicInteger progress = new AtomicInteger(0);
+        final int total = viewerRegions.size();
+        IntStream.range(0, total).parallel().forEach(i -> {
             if (cancelled.get())
                 return;
             final String boundary = "----------------" + System.currentTimeMillis();
@@ -166,6 +172,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
                     logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
                     cancelled.set(true);
                 } else {
+                    updateMessage(String.format("%d/%d images uploaded", progress.incrementAndGet(), total));
                     logger.info("Uploaded image {}", response.body());
                 }
             } catch (IOException e) {
@@ -211,13 +218,15 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         if (isCancelled())
             return Collections.emptyList();
 
+        updateMessage("Processing images...");
         HttpResponse<String> response = sendRequest(serverURL, prompt);
 
         if (isCancelled())
             return Collections.emptyList();
 
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-            return parseResponse(response, viewerRegions.get(0), null);
+            updateMessage("Processing done.");
+            return parseResponse(response, viewerRegions.get(0));
         } else {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
@@ -239,8 +248,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest,
-            PathClass pathClass) {
+    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest) {
         List<PathObject> samObjects = Utils.parsePathObjects(response.body());
         AffineTransform transform = new AffineTransform();
         transform.translate(regionRequest.getMinX(), regionRequest.getMinY());
@@ -254,7 +262,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             } else if (promptMode == SAMPromptMode.XYT) {
                 plane = ImagePlane.getPlane(plane.getZ(), fromIndex + plane.getT());
             }
-            pathObject = Utils.applyTransformAndClassification(pathObject, transform, null, plane);
+            PathClass pathClass = indexToPathClass.get(Integer.valueOf(pathObject.getPathClass().getName()));
+            pathObject = Utils.applyTransformAndClassification(pathObject, transform, pathClass, plane);
             if (setName)
                 Utils.setNameForSAM(pathObject);
             if (setRandomColor && pathObject.getPathClass() == null)
@@ -294,6 +303,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private String checkpointUrl;
         private int fromIndex;
         private int toIndex;
+        private Map<Integer, PathClass> indexToPathClass;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -414,6 +424,17 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder toIndex(final int toIndex) {
             this.toIndex = toIndex;
+            return this;
+        }
+
+        /**
+         * Specify the mapping from index to PathClass.
+         * 
+         * @param indexToPathClass
+         * @return this builder
+         */
+        public Builder indexToPathClass(final Map<Integer, PathClass> indexToPathClass) {
+            this.indexToPathClass = indexToPathClass;
             return this;
         }
 

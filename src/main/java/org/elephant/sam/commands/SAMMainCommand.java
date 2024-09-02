@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.elephant.sam.Utils;
+import org.elephant.sam.comparators.NaturalOrderComparator;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.entities.SAMPromptMode;
 import org.elephant.sam.entities.SAMType;
@@ -633,6 +635,18 @@ public class SAMMainCommand implements Runnable {
         submitTask(task);
     }
 
+    private PathClass getNextPathClass(Collection<String> samPathClassNames) {
+        int i = 0;
+        while (true) {
+            String name = String.format("SAM%d", i);
+            if (samPathClassNames.contains(name)) {
+                i++;
+            } else {
+                return PathClass.getInstance(name);
+            }
+        }
+    }
+
     /**
      * Run the video predictor.
      */
@@ -672,15 +686,26 @@ public class SAMMainCommand implements Runnable {
         }
         RegionRequest regionRequest = null;
         int objsKey = -1;
-        Map<String, Integer> nameToIndex = new HashMap<>();
+        Collection<String> samPathClassNames = qupath.getViewer().getHierarchy().getAnnotationObjects().stream()
+                .filter(pathObject -> !PathClassTools.isNullClass(pathObject.getPathClass()))
+                .map(pathObject -> pathObject.getPathClass().getName())
+                .filter(name -> name != null && name.startsWith("SAM"))
+                .collect(Collectors.toSet());
+        Map<PathClass, Integer> pathClassToIndex = new HashMap<>();
+        Map<Integer, PathClass> indexToPathClass = new HashMap<>();
         for (int i = 0; i < topLevelObjects.size(); i++) {
             PathObject topLevelObject = topLevelObjects.get(i);
-            String objectKey = topLevelObject.getName();
+            PathClass objectClass = topLevelObject.getPathClass();
             int objectIndex;
-            if (objectKey == null) {
+            if (PathClassTools.isNullClass(objectClass)) {
                 objectIndex = i;
+                indexToPathClass.put(objectIndex, getNextPathClass(samPathClassNames));
+                samPathClassNames.add(indexToPathClass.get(objectIndex).getName());
             } else {
-                objectIndex = nameToIndex.getOrDefault(objectKey, topLevelObjects.size() + nameToIndex.size());
+                objectIndex = pathClassToIndex.getOrDefault(objectClass,
+                        topLevelObjects.size() + pathClassToIndex.size());
+                pathClassToIndex.put(objectClass, objectIndex);
+                indexToPathClass.put(objectIndex, objectClass);
             }
             Builder builder = SAM2VideoPromptObject.builder(objectIndex);
             final ROI roi = topLevelObject.getROI();
@@ -747,7 +772,11 @@ public class SAMMainCommand implements Runnable {
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
                 .fromIndex(fromIndexProperty.get())
                 .toIndex(toIndexProperty.get())
+                .indexToPathClass(indexToPathClass)
                 .build();
+        task.messageProperty().addListener((observable, oldValue, newValue) -> {
+            updateInfoText(newValue);
+        });
         task.setOnSucceeded(event -> {
             List<PathObject> detected = task.getValue();
             if (detected != null) {
@@ -759,9 +788,11 @@ public class SAMMainCommand implements Runnable {
                             hierarchy.getSelectionModel().clearSelection();
                             hierarchy.removeObjects(topLevelObjects, false);
                         }
-                        PathObject firstPathObject = detected.get(0);
-                        firstPathObject.addChildObjects(detected);
-                        hierarchy.addObject(firstPathObject);
+                        indexToPathClass.values().stream()
+                                .filter(pathClass -> !qupath.getAvailablePathClasses().contains(pathClass))
+                                .sorted(Comparator.comparing(PathClass::getName, new NaturalOrderComparator()))
+                                .forEachOrdered(pathClass -> qupath.getAvailablePathClasses().add(pathClass));
+                        hierarchy.addObjects(detected);
                         hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
                     });
                 } else {

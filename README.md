@@ -1,5 +1,8 @@
 # QuPath extension SAM
 
+### New release v0.7: SAM2-based 2D+T tracking and 3D segmentation are supported now!
+<img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/sam2-sequence-demo.gif" width="768">
+
 <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-samapi.gif" width="768">
 
 <img src="https://github.com/ksugar/samapi/releases/download/assets/qupath-sam-multipoint-live.gif" width="768">
@@ -173,8 +176,11 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 ## Updates
 
+### v0.7.0
+- Support 2D+T tracking and 3D segmentation with [SAM2](https://ai.meta.com/sam2/) models, available with the [samapi](https://github.com/ksugar/samapi) server `v0.6.0` and above.
+
 ### v0.6.0
-- Support [SAM2](https://ai.meta.com/sam2/) models. The SAM2 models are available from the [samapi](https://github.com/ksugar/samapi) server `v0.5.0` and above.
+- Support [SAM2](https://ai.meta.com/sam2/) models, available with the [samapi](https://github.com/ksugar/samapi) server `v0.5.0` and above.
 - Use the current view for the encoder input in the rectangle mode.
 
 ### v0.5.0

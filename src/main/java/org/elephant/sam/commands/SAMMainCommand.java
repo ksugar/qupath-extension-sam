@@ -1,22 +1,32 @@
 package org.elephant.sam.commands;
 
 import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.elephant.sam.Utils;
+import org.elephant.sam.comparators.NaturalOrderComparator;
 import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.entities.SAMPromptMode;
 import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMWeights;
+import org.elephant.sam.parameters.SAM2VideoPromptObject;
+import org.elephant.sam.parameters.SAM2VideoPromptObject.Builder;
 import org.elephant.sam.tasks.SAMAutoMaskTask;
 import org.elephant.sam.tasks.SAMCancelDownloadTask;
 import org.elephant.sam.tasks.SAMDetectionTask;
 import org.elephant.sam.tasks.SAMFetchWeightsTask;
 import org.elephant.sam.tasks.SAMProgressTask;
 import org.elephant.sam.tasks.SAMRegisterWeightsTask;
+import org.elephant.sam.tasks.SAMSequenceTask;
 import org.elephant.sam.ui.SAMMainPane;
 import org.elephant.sam.ui.SAMUIUtils;
 import org.slf4j.Logger;
@@ -32,6 +42,7 @@ import javafx.beans.property.LongProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleDoubleProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleLongProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -52,13 +63,17 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
+import qupath.lib.images.servers.ImageServer;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.classes.PathClassTools;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
+import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.PointsROI;
+import qupath.lib.roi.RectangleROI;
+import qupath.lib.roi.interfaces.ROI;
 
 /**
  * The main command for SAM.
@@ -340,6 +355,24 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * From index used in runVideo.
+     */
+    private final IntegerProperty fromIndexProperty = new SimpleIntegerProperty(0);
+
+    public IntegerProperty getFromIndexProperty() {
+        return fromIndexProperty;
+    }
+
+    /**
+     * To index used in runVideo.
+     */
+    private final IntegerProperty toIndexProperty = new SimpleIntegerProperty(0);
+
+    public IntegerProperty getToIndexProperty() {
+        return toIndexProperty;
+    }
+
+    /**
      * Current image data
      */
     private final ObjectProperty<ImageData<BufferedImage>> imageDataProperty = new SimpleObjectProperty<>();
@@ -389,7 +422,8 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
-     * Timestamp of the last info text representing an error. This can be used for styling,
+     * Timestamp of the last info text representing an error. This can be used for
+     * styling,
      * and/or to ensure that errors remain visible for a minimum amount of time.
      */
     private LongProperty infoTextErrorTimestampProperty = new SimpleLongProperty(0);
@@ -398,11 +432,22 @@ public class SAMMainCommand implements Runnable {
         return infoTextErrorTimestampProperty;
     }
 
+    /**
+     * Selected SAM prompt mode
+     */
+    private final ObjectProperty<SAMPromptMode> samPromptModeProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.promptMode", SAMPromptMode.XY, SAMPromptMode.class);
+
+    public ObjectProperty<SAMPromptMode> getSamPromptModeProperty() {
+        return samPromptModeProperty;
+    }
+
     private PathObjectHierarchyListener hierarchyListener = this::hierarchyChanged;
 
     private ChangeListener<ImageData<BufferedImage>> imageDataListener = this::imageDataChanged;
 
-    // We need to turn off the multipoint tool when running live detection, but restore it afterwards
+    // We need to turn off the multipoint tool when running live detection, but
+    // restore it afterwards
     private boolean previousMultipointValue = PathPrefs.multipointToolProperty().get();
 
     /**
@@ -490,8 +535,8 @@ public class SAMMainCommand implements Runnable {
         Platform.runLater(() -> {
             fixStageSizeOnFirstShow(stage);
         });
-        stage.setResizable(false);
         stage.setTitle(TITLE);
+        stage.setResizable(true);
         stage.initOwner(qupath.getStage());
         stage.setOnCloseRequest(event -> {
             hideStage();
@@ -518,10 +563,7 @@ public class SAMMainCommand implements Runnable {
         stage.hide();
     }
 
-    /**
-     * Run the detection with a prompt.
-     */
-    public void runPrompt() {
+    public void runPrompt2D() {
         QuPathViewer viewer = qupath.getViewer();
         ImageData<BufferedImage> imageData = imageDataProperty.get();
         if (imageData == null || viewer == null) {
@@ -539,6 +581,19 @@ public class SAMMainCommand implements Runnable {
             submitDetectionTask(foregroundObjects, backgroundObjects);
         } else {
             updateInfoText("No foreground objects to use");
+        }
+    }
+
+    /**
+     * Run the detection with a prompt.
+     */
+    public void runPrompt() {
+        if (samPromptModeProperty.isEqualTo(SAMPromptMode.XY).get()) {
+            logger.info("Running prompt in 2D mode");
+            runPrompt2D();
+        } else {
+            logger.info("Running prompt in video mode");
+            runVideo();
         }
     }
 
@@ -577,6 +632,174 @@ public class SAMMainCommand implements Runnable {
                 .includeImageEdge(includeImageEdgeProperty.get())
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
                 .build();
+        submitTask(task);
+    }
+
+    private PathClass getNextPathClass(Collection<String> samPathClassNames) {
+        int i = 0;
+        while (true) {
+            String name = String.format("SAM%d", i);
+            if (samPathClassNames.contains(name)) {
+                i++;
+            } else {
+                return PathClass.getInstance(name);
+            }
+        }
+    }
+
+    /**
+     * Run the video predictor.
+     */
+    public void runVideo() {
+        if (samPromptModeProperty.get() == SAMPromptMode.XY) {
+            updateInfoTextWithError("Video prediction is not available in XY mode!");
+            return;
+        }
+        QuPathViewer viewer = qupath.getViewer();
+        ImageData<BufferedImage> imageData = imageDataProperty.get();
+        if (imageData == null || viewer == null) {
+            updateInfoTextWithError("No image available!");
+            return;
+        }
+        if (imageData != viewer.getImageData()) {
+            updateInfoTextWithError("ImageData doesn't match what's in the viewer!");
+            return;
+        }
+        Collection<PathObject> selectedObjects = imageData.getHierarchy().getSelectionModel().getSelectedObjects();
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            selectedObjects = selectedObjects.stream().filter((pathObject) -> {
+                return ((pathObject.getROI().getT() == viewer.getTPosition()));
+            }).collect(Collectors.toSet());
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            selectedObjects = selectedObjects.stream().filter((pathObject) -> {
+                return ((pathObject.getROI().getZ() == viewer.getZPosition()));
+            }).collect(Collectors.toSet());
+        }
+        List<PathObject> topLevelObjects = getTopLevelObjects(selectedObjects);
+        Map<Integer, RegionRequest> regionRequests = new HashMap<>();
+        Map<Integer, List<SAM2VideoPromptObject>> objs = new HashMap<>();
+        ImageServer<BufferedImage> renderedServer = null;
+        try {
+            renderedServer = Utils.createRenderedServer(viewer);
+        } catch (IOException e) {
+            logger.error("Failed to create rendered server", e);
+        }
+        RegionRequest regionRequest = null;
+        int objsKey = -1;
+        Collection<String> samPathClassNames = qupath.getViewer().getHierarchy().getAnnotationObjects().stream()
+                .filter(pathObject -> !PathClassTools.isNullClass(pathObject.getPathClass()))
+                .map(pathObject -> pathObject.getPathClass().getName())
+                .filter(name -> name != null && name.startsWith("SAM"))
+                .collect(Collectors.toSet());
+        Map<PathClass, Integer> pathClassToIndex = new HashMap<>();
+        Map<Integer, PathClass> indexToPathClass = new HashMap<>();
+        for (int i = 0; i < topLevelObjects.size(); i++) {
+            PathObject topLevelObject = topLevelObjects.get(i);
+            PathClass objectClass = topLevelObject.getPathClass();
+            int objectIndex;
+            if (PathClassTools.isNullClass(objectClass)) {
+                objectIndex = i;
+                indexToPathClass.put(objectIndex, getNextPathClass(samPathClassNames));
+                samPathClassNames.add(indexToPathClass.get(objectIndex).getName());
+            } else {
+                objectIndex = pathClassToIndex.getOrDefault(objectClass,
+                        topLevelObjects.size() + pathClassToIndex.size());
+                pathClassToIndex.put(objectClass, objectIndex);
+                indexToPathClass.put(objectIndex, objectClass);
+            }
+            Builder builder = SAM2VideoPromptObject.builder(objectIndex);
+            final ROI roi = topLevelObject.getROI();
+            if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+                objsKey = roi.getZ();
+                regionRequest = regionRequests.getOrDefault(objsKey,
+                        Utils.getViewerRegion(viewer, renderedServer, roi.getZ(), viewer.getTPosition()));
+            } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+                objsKey = roi.getT();
+                regionRequest = regionRequests.getOrDefault(objsKey,
+                        Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), roi.getT()));
+            }
+            objsKey -= fromIndexProperty.get();
+            if (roi instanceof PointsROI) {
+                PointsROI pointsROI = (PointsROI) roi;
+                if (isForegroundObject(topLevelObject)) {
+                    builder = builder.addToForeground(Utils.getCoordinates(pointsROI, regionRequest,
+                            regionRequest.getWidth(), regionRequest.getHeight()));
+                } else {
+                    builder = builder.addToBackground(Utils.getCoordinates(pointsROI, regionRequest,
+                            regionRequest.getWidth(), regionRequest.getHeight()));
+                }
+            } else if (roi instanceof RectangleROI) {
+                RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                        regionRequest.getDownsample(), roi);
+                builder = builder.bbox(
+                        (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / regionRequest.getDownsample()),
+                        (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / regionRequest.getDownsample()),
+                        (int) Math
+                                .round((roiRegion.getMaxX() - regionRequest.getMinX()) / regionRequest.getDownsample()),
+                        (int) Math.round(
+                                (roiRegion.getMaxY() - regionRequest.getMinY()) / regionRequest.getDownsample()));
+                for (PathObject childObject : topLevelObject.getChildObjects()) {
+                    final ROI childROOI = childObject.getROI();
+                    if (childROOI instanceof PointsROI) {
+                        PointsROI pointsChildROI = (PointsROI) childROOI;
+                        if (isForegroundObject(childObject)) {
+                            builder = builder.addToForeground(Utils.getCoordinates(pointsChildROI, regionRequest,
+                                    regionRequest.getWidth(), regionRequest.getHeight()));
+                        } else {
+                            builder = builder.addToBackground(Utils.getCoordinates(pointsChildROI, regionRequest,
+                                    regionRequest.getWidth(), regionRequest.getHeight()));
+                        }
+                    }
+                }
+            } else {
+                continue;
+            }
+            final SAM2VideoPromptObject sam2VideoPromptObject = builder.build();
+
+            List<SAM2VideoPromptObject> objectList = objs.getOrDefault(objsKey, new ArrayList<>());
+            objectList.add(sam2VideoPromptObject);
+            objs.put(objsKey, objectList);
+        }
+        if (objs.isEmpty()) {
+            updateInfoText("No prompts specified");
+            return;
+        }
+        SAMSequenceTask task = SAMSequenceTask.builder(qupath.getViewer())
+                .serverURL(serverURLProperty.get())
+                .model(samTypeProperty.get())
+                .promptMode(samPromptModeProperty.get())
+                .objs(objs)
+                .checkpointUrl(selectedWeightsProperty.get().getUrl())
+                .fromIndex(fromIndexProperty.get())
+                .toIndex(toIndexProperty.get())
+                .indexToPathClass(indexToPathClass)
+                .build();
+        task.messageProperty().addListener((observable, oldValue, newValue) -> {
+            updateInfoText(newValue);
+        });
+        task.setOnSucceeded(event -> {
+            List<PathObject> detected = task.getValue();
+            if (detected != null) {
+                if (!detected.isEmpty()) {
+                    Platform.runLater(() -> {
+                        PathObjectHierarchy hierarchy = qupath.getViewer().getImageData().getHierarchy();
+                        if (!keepPromptsProperty.get()) {
+                            // Remove prompt objects in one step
+                            hierarchy.getSelectionModel().clearSelection();
+                            hierarchy.removeObjects(topLevelObjects, false);
+                        }
+                        indexToPathClass.values().stream()
+                                .filter(pathClass -> !qupath.getAvailablePathClasses().contains(pathClass))
+                                .sorted(Comparator.comparing(PathClass::getName, new NaturalOrderComparator()))
+                                .forEachOrdered(pathClass -> qupath.getAvailablePathClasses().add(pathClass));
+                        hierarchy.addObjects(detected);
+                        hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
+                    });
+                } else {
+                    logger.warn("No objects detected");
+                }
+            }
+        });
         submitTask(task);
     }
 
@@ -735,7 +958,7 @@ public class SAMMainCommand implements Runnable {
                 .build();
         task.setOnSucceeded(event -> {
             List<PathObject> detected = task.getValue();
-            if (detected != null && !task.getValue().isEmpty()) {
+            if (detected != null) {
                 if (!detected.isEmpty()) {
                     Platform.runLater(() -> {
                         PathObjectHierarchy hierarchy = qupath.getViewer().getImageData().getHierarchy();
@@ -865,6 +1088,19 @@ public class SAMMainCommand implements Runnable {
         return pathObjects
                 .stream()
                 .filter(this::isBackgroundObject)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the top-level annotation objects from a collection of path objects.
+     * 
+     * @param pathObjects
+     * @return the list of foreground objects
+     */
+    private List<PathObject> getTopLevelObjects(Collection<? extends PathObject> pathObjects) {
+        return pathObjects
+                .stream()
+                .filter(pathObject -> pathObject.getLevel() == 1)
                 .collect(Collectors.toList());
     }
 

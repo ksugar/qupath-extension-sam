@@ -5,9 +5,12 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.http.MultipartBodyBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import qupath.lib.awt.common.AwtTools;
 import qupath.lib.common.GeneralTools;
 import qupath.lib.geom.Point2;
 import qupath.lib.gui.images.servers.RenderedImageServer;
@@ -18,6 +21,7 @@ import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjectTools;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
+import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
@@ -92,9 +96,13 @@ public class Utils {
         if (jsonObj.has("properties")) {
             // Set quality from properties if we can
             JsonObject properties = jsonObj.get("properties").getAsJsonObject();
-            JsonElement quality = properties.has("quality") ? properties.get("quality") : null;
+            JsonElement quality = properties.get("quality");
             if (quality != null && quality.isJsonPrimitive()) {
                 pathObject.getMeasurementList().put(SAM_QUALITY_MEASUREMENT, quality.getAsDouble());
+            }
+            JsonElement objectId = properties.get("object_idx");
+            if (objectId != null && objectId.isJsonPrimitive()) {
+                pathObject.setPathClass(PathClass.getInstance(objectId.getAsString()));
             }
         }
         return pathObject;
@@ -154,7 +162,11 @@ public class Utils {
         }
         if (plane != null && !Objects.equals(plane, pathObject.getROI().getImagePlane()))
             pathObject = PathObjectTools.updatePlane(pathObject, plane, true, false);
-        pathObject.setPathClass(pathClass);
+        if (pathClass == PathClass.NULL_CLASS) {
+            pathObject.resetPathClass();
+        } else if (pathClass != null) {
+            pathObject.setPathClass(pathClass);
+        }
         return pathObject;
     }
 
@@ -212,6 +224,43 @@ public class Utils {
                 .store(viewer.getImageRegionStore())
                 .renderer(viewer.getImageDisplay())
                 .build();
+    }
+
+    /**
+     * Get a region request for the viewer, intersected with the rendered server.
+     * 
+     * @param viewer
+     * @param renderedServer
+     * @return the region request
+     */
+    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> renderedServer) {
+        return getViewerRegion(viewer, renderedServer, viewer.getZPosition(), viewer.getTPosition());
+    }
+
+    /**
+     * Get a region request for the viewer, intersected with the rendered server.
+     * 
+     * @param viewer
+     * @param renderedServer
+     * @param z
+     * @param t
+     * @return the region request
+     */
+    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> renderedServer, int z,
+            int t) {
+        if (renderedServer == null) {
+            try {
+                renderedServer = Utils.createRenderedServer(viewer);
+            } catch (IOException e) {
+                logger.error("Failed to create rendered server", e);
+            }
+        }
+        // Find the region and downsample currently used within the viewer
+        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z, t);
+        RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                viewer.getDownsampleFactor(), region);
+        viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        return viewerRegion;
     }
 
     /**
@@ -331,6 +380,32 @@ public class Utils {
      */
     public static boolean isPotentialPromptObject(PathObject pathObject) {
         return pathObject.isAnnotation() && pathObject.hasROI() && !pathObject.getROI().isEmpty();
+    }
+
+    /**
+     * Converts a BufferedImage to a JPEG byte array.
+     *
+     * @param image
+     *            The BufferedImage to convert.
+     * @return A byte array containing the JPEG data.
+     * @throws IOException
+     *             If an error occurs during writing.
+     */
+    public static byte[] bufferedImageToJpegBytes(BufferedImage image) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(image, "jpg", baos);
+            return baos.toByteArray();
+        }
+    }
+
+    public static byte[] createImageUploadMultipartBody(String boundary, String dirname, String filename,
+            BufferedImage image)
+            throws IOException {
+        byte[] imageBytes = bufferedImageToJpegBytes(image);
+        final MultipartBodyBuilder builder = new MultipartBodyBuilder(boundary);
+        builder.addFormField("dirname", dirname);
+        builder.addFilePart("file", filename, "image/jpeg", imageBytes);
+        return builder.build();
     }
 
 }

@@ -58,8 +58,6 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
      */
     private RegionRequest viewerRegion;
 
-    private double padScale = 2.0;
-
     private final List<PathObject> foregroundObjects;
     private final List<PathObject> backgroundObjects;
 

@@ -20,9 +20,7 @@ public class SAMPromptParameters {
 	private String b64img;
 	@SuppressWarnings("unused")
 	private String b64mask;
-	@SuppressWarnings("unused")
 	private int[][] point_coords;
-	@SuppressWarnings("unused")
 	private int[] point_labels;
 	@SuppressWarnings("unused")
 	private boolean multimask_output;

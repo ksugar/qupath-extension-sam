@@ -15,7 +15,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.6.0/qupath-extension-sam-0.6.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.7.0/qupath-extension-sam-0.7.0.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
 
@@ -33,7 +33,7 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.6.0/qupath-extension-sam-0.6.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.7.0/qupath-extension-sam-0.7.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 3. Restart QuPath application.
 
 Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.5.0) server.  

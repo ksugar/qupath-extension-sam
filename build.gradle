@@ -49,6 +49,8 @@ dependencies {
     // See https://docs.gradle.org/current/userguide/platforms.html
     shadow libs.slf4j
 
+    implementation "org.apache.httpcomponents.client5:httpclient5:5.4.1"
+
     testImplementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
     testImplementation libs.junit
 }

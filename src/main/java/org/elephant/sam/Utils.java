@@ -398,14 +398,4 @@ public class Utils {
         }
     }
 
-    public static byte[] createImageUploadMultipartBody(String boundary, String dirname, String filename,
-            BufferedImage image)
-            throws IOException {
-        byte[] imageBytes = bufferedImageToJpegBytes(image);
-        final MultipartBodyBuilder builder = new MultipartBodyBuilder(boundary);
-        builder.addFormField("dirname", dirname);
-        builder.addFilePart("file", filename, "image/jpeg", imageBytes);
-        return builder.build();
-    }
-
 }

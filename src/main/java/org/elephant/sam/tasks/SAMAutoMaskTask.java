@@ -1,14 +1,14 @@
 package org.elephant.sam.tasks;
 
-import com.google.gson.Gson;
-import javafx.concurrent.Task;
-
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
+import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.parameters.SAMAutoMaskParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javafx.concurrent.Task;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.QuPathViewer;
@@ -25,11 +25,11 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A task to perform SAM detection on a given image.
@@ -62,6 +62,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     private final SAMType model;
 
     private final int pointsPerSide;
@@ -93,6 +95,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private SAMAutoMaskTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
+
+        this.verifySSL = builder.verifySSL;
+        Objects.requireNonNull(verifySSL, "VerifySSL must not be null!");
 
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
@@ -192,7 +197,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         if (isCancelled())
             return Collections.emptyList();
 
-        HttpResponse<String> response = sendRequest(serverURL, parameters);
+        final String endpointURL = String.format("%sautomask/", serverURL);
+        HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
+                GsonTools.getInstance().toJson(parameters));
 
         if (isCancelled())
             return Collections.emptyList();
@@ -203,21 +210,6 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
-    }
-
-    private static HttpResponse<String> sendRequest(String serverURL, SAMAutoMaskParameters parameters)
-            throws IOException, InterruptedException {
-        final Gson gson = GsonTools.getInstance();
-        final String body = gson.toJson(parameters);
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%sautomask/", serverURL)))
-                .header("accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpClient client = HttpClient.newHttpClient();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest,
@@ -261,6 +253,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private ImageServer<BufferedImage> server;
 
         private String serverURL;
+        private boolean verifySSL;
         private SAMType model = SAMType.VIT_L;
         private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
@@ -292,6 +285,17 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify if veryfy SSL.
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 

@@ -1,16 +1,18 @@
 package org.elephant.sam.tasks;
 
-import com.google.gson.Gson;
-import javafx.concurrent.Task;
-
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
+import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.entities.SAMPromptMode;
 import org.elephant.sam.parameters.SAM2VideoPromptObject;
 import org.elephant.sam.parameters.SAM2VideoPromptParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javafx.concurrent.Task;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
@@ -26,9 +28,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,6 +68,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     private final SAMType model;
 
     private final SAMPromptMode promptMode;
@@ -84,6 +85,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
+
+        this.verifySSL = builder.verifySSL;
+        Objects.requireNonNull(verifySSL, "Verify SSL must not be null!");
 
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
@@ -157,17 +161,13 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             final String boundary = "----------------" + System.currentTimeMillis();
             try {
                 final BufferedImage img = renderedServer.readRegion(viewerRegions.get(i));
-                final byte[] multipartBody = Utils.createImageUploadMultipartBody(boundary, dirname,
-                        String.format(filenameFormat, i), img);
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                        .version(HttpClient.Version.HTTP_1_1)
-                        .uri(URI.create(String.format("%supload/", serverURL)))
-                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                        .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
-                        .build();
-                System.out.println(request.toString());
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                final String endpointURL = String.format("%supload/", serverURL);
+                MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create()
+                        .setBoundary(boundary)
+                        .addTextBody("dirname", dirname, ContentType.TEXT_PLAIN)
+                        .addBinaryBody("file", Utils.bufferedImageToJpegBytes(img), ContentType.create("image/jpeg"),
+                                String.format(filenameFormat, i));
+                HttpResponse<String> response = HttpUtils.postMultipartRequest(endpointURL, verifySSL, entityBuilder);
                 if (response.statusCode() != HttpURLConnection.HTTP_OK) {
                     logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
                     cancelled.set(true);
@@ -177,9 +177,6 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
                 }
             } catch (IOException e) {
                 logger.error("Failed to upload image", e);
-                cancelled.set(true);
-            } catch (InterruptedException e) {
-                logger.warn("Interrupted while uploading images", e);
                 cancelled.set(true);
             }
         });
@@ -219,7 +216,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         updateMessage("Processing images...");
-        HttpResponse<String> response = sendRequest(serverURL, prompt);
+        final String endpointURL = String.format("%svideo/", serverURL);
+        HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
+                GsonTools.getInstance().toJson(prompt));
 
         if (isCancelled())
             return Collections.emptyList();
@@ -231,21 +230,6 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
-    }
-
-    private static HttpResponse<String> sendRequest(String serverURL, SAM2VideoPromptParameters prompt)
-            throws IOException, InterruptedException {
-        final Gson gson = GsonTools.getInstance();
-        final String body = gson.toJson(prompt);
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%svideo/", serverURL)))
-                .header("accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpClient client = HttpClient.newHttpClient();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest) {
@@ -296,6 +280,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private ImageServer<BufferedImage> server;
 
         private String serverURL;
+        private boolean verifySSL;
         private SAMType model = SAMType.VIT_L;
         private SAMPromptMode promptMode = SAMPromptMode.XYZ;
         private boolean setRandomColor = true;
@@ -317,6 +302,17 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify whether to verify SSL (required).
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 

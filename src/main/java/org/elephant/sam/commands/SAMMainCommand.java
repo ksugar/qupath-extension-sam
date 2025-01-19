@@ -103,6 +103,17 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * Specify whether to verify SSL.
+     */
+    private static final boolean DEFAULT_VERIFY_SSL = false;
+    private final BooleanProperty verifySSLProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.verifySSL", DEFAULT_VERIFY_SSL);
+
+    public BooleanProperty getVerifySSLProperty() {
+        return verifySSLProperty;
+    }
+
+    /**
      * Selected SAM type
      */
     private final ObjectProperty<SAMType> samTypeProperty = PathPrefs.createPersistentPreference(
@@ -613,6 +624,7 @@ public class SAMMainCommand implements Runnable {
         }
         SAMAutoMaskTask task = SAMAutoMaskTask.builder(qupath.getViewer())
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .model(samTypeProperty.get())
                 .outputType(outputTypeProperty.get())
                 .setName(setNamesProperty.get())
@@ -856,6 +868,7 @@ public class SAMMainCommand implements Runnable {
     public void submitFetchWeightsTask(SAMType samType) {
         SAMFetchWeightsTask task = SAMFetchWeightsTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .samType(samType)
                 .build();
         task.setOnSucceeded(event -> {
@@ -876,6 +889,7 @@ public class SAMMainCommand implements Runnable {
     public void submitCancelDownloadTask() {
         SAMCancelDownloadTask task = SAMCancelDownloadTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .build();
         submitTask(task);
     }
@@ -886,6 +900,7 @@ public class SAMMainCommand implements Runnable {
     public SAMProgressTask submitProgressTask() {
         SAMProgressTask task = SAMProgressTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .build();
         submitTask(task);
         return task;
@@ -897,6 +912,7 @@ public class SAMMainCommand implements Runnable {
     public void submitRegisterWeightsTask(SAMWeights samWeights, SAMProgressTask progressTask) {
         SAMRegisterWeightsTask task = SAMRegisterWeightsTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .samType(samWeights.getType())
                 .name(samWeights.getName())
                 .url(samWeights.getUrl())

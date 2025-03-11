@@ -58,7 +58,7 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 #### Point prompt
 
 1. Select `Extensions` > `SAM` from the menu bar.
-2. Select the `Prompt` tab in the `Segment Anyghing Model` dialog.
+2. Select the `Prompt` tab in the `Segment Anything Model` dialog.
 2. Select a point tool by clicking the icon.
 3. Add foreground points.
 4. (Optional) add background points.
@@ -84,7 +84,7 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 ### SamAutomaticMaskGenerator
 
 1. Select `Extensions` > `SAM` from the menu bar.
-2. Select the `Auto mask` tab in the `Segment Anyghing Model` dialog.
+2. Select the `Auto mask` tab in the `Segment Anything Model` dialog.
 3. Set parameters.
 4. Press the `Run` button.
 
@@ -115,7 +115,7 @@ To keep updated with the latest samapi server, follow the instructions [here](ht
 ### Register SAM weights from URL
 
 1. Select `Extensions` > `SAM` from the menu bar.
-2. Press the `Register` button in the `Segment Anyghing Model` dialog.
+2. Press the `Register` button in the `Segment Anything Model` dialog.
 
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-sam-register-weights-from-url.png" width="768">
 

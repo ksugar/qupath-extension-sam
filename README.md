@@ -143,12 +143,13 @@ Here is a list of SAM weights that you can register from the URL.
         </tr>
     </thead>
     <tbody>
+	# MicroSAM models
         <tr>
             <td>vit_h</td>
             <td>vit_h_lm</td>
             <td><a href="https://zenodo.org/record/8250299/files/vit_h_lm.pth?download=1">https://zenodo.org/record/8250299/files/vit_h_lm.pth?download=1</a></td>
-            <td rowspan="4">Archit, A. et al. <a href="https://doi.org/10.1101/2023.08.21.554208">Segment Anything for
-                    Microscopy.</a> bioRxiv 2023. doi:10.1101/2023.08.21.554208<br><br><a href="https://github.com/computational-cell-analytics/micro-sam">https://github.com/computational-cell-analytics/micro-sam</a></td>
+            <td rowspan="4">Archit, A. et al. <a href="https://doi.org/10.1038/s41592-024-02580-4">Segment Anything for
+                    Microscopy.</a> Nature Methods 2025.<br><br><a href="https://github.com/computational-cell-analytics/micro-sam">https://github.com/computational-cell-analytics/micro-sam</a></td>
         </tr>
         <tr>
             <td>vit_b</td>
@@ -164,6 +165,19 @@ Here is a list of SAM weights that you can register from the URL.
             <td>vit_b</td>
             <td>vit_b_em</td>
             <td><a href="https://zenodo.org/record/8250260/files/vit_b_em.pth?download=1">https://zenodo.org/record/8250260/files/vit_b_em.pth?download=1</a></td>
+        </tr>
+	# PathoSAM models
+	<tr>
+            <td>vit_h</td>
+            <td>vit_h_histopathology</td>
+            <td><a href="https://owncloud.gwdg.de/index.php/s/L7AcvVz7DoWJ2RZ/download">https://owncloud.gwdg.de/index.php/s/L7AcvVz7DoWJ2RZ/download</a></td>
+            <td rowspan="2">Greibel, T. et al. <a href="https://doi.org/10.48550/arXiv.2502.00408">Segment Anything for
+                    Histopathology.</a> arXiv 2025.<br><br><a href="https://github.com/computational-cell-analytics/patho-sam">https://github.com/computational-cell-analytics/patho-sam</a></td>
+        </tr>
+        <tr>
+            <td>vit_b</td>
+            <td>vit_b_histopathology</td>
+            <td><a href="https://owncloud.gwdg.de/index.php/s/sBB4H8CTmIoBZsQ/download">https://owncloud.gwdg.de/index.php/s/sBB4H8CTmIoBZsQ/download</a></td>
         </tr>
     </tbody>
 </table>

@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.concurrent.Task;
-import qupath.lib.awt.common.AwtTools;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
@@ -17,7 +16,6 @@ import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
-import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
@@ -50,10 +48,10 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
     private ImageServer<BufferedImage> renderedServer;
 
     /**
-     * The field of view visible within the viewer at the time the detection task
+     * In the GUI mode, the field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private RegionRequest viewerRegion;
+    private RegionRequest regionRequest;
 
     private final List<PathObject> foregroundObjects;
     private final List<PathObject> backgroundObjects;
@@ -99,12 +97,10 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
             }
         }
 
-        // Find the region and downsample currently used within the viewer
-        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                viewer.getTPosition());
-        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(),
-                region);
-        this.viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        this.regionRequest = builder.regionRequest;
+        if (this.regionRequest == null) {
+            this.regionRequest = Utils.getViewerRegion(viewer, renderedServer);
+        }
 
         this.foregroundObjects = new ArrayList<>(builder.foregroundObjects);
         this.backgroundObjects = new ArrayList<>(builder.backgroundObjects);
@@ -144,12 +140,8 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
 
         // Determine which part of the image we need & set foreground prompts
         ROI roi = foregroundObject.getROI();
-        RegionRequest regionRequest;
         BufferedImage img;
-        double downsample = this.viewerRegion.getDownsample();
-        // Updated in version 0.6.0
-        // For both rectangular and point prompts (including line vertices), use the current viewer region
-        regionRequest = this.viewerRegion;
+        double downsample = regionRequest.getDownsample();
         img = renderedServer.readRegion(regionRequest);
         if (roi instanceof RectangleROI) {
             // For rectangular prompts, add some extra context from nearby
@@ -233,6 +225,7 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
         private Collection<PathObject> backgroundObjects = new LinkedHashSet<>();
 
         private ImageServer<BufferedImage> server;
+        private RegionRequest regionRequest;
 
         private String serverURL;
         private boolean verifySSL = false;
@@ -326,6 +319,17 @@ public class SAMDetectionTask extends Task<List<PathObject>> {
          */
         public Builder server(final ImageServer<BufferedImage> server) {
             this.server = server;
+            return this;
+        }
+
+        /**
+         * Specify the region request (required).
+         * 
+         * @param regionRequest
+         * @return this builder
+         */
+        public Builder regionRequest(final RegionRequest regionRequest) {
+            this.regionRequest = regionRequest;
             return this;
         }
 

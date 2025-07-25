@@ -13,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.concurrent.Task;
-import qupath.lib.awt.common.AwtTools;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
@@ -21,7 +20,6 @@ import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
-import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 
 import java.awt.geom.AffineTransform;
@@ -58,7 +56,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
      * The field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private final List<RegionRequest> viewerRegions = new ArrayList<>();
+    private final List<RegionRequest> regionRequests = new ArrayList<>();
 
     private final Map<Integer, List<SAM2VideoPromptObject>> objs;
 
@@ -78,7 +76,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
     private final int planePosition;
 
-    private final int fromIndex;
+    private final int indexOffset;
 
     private final Map<Integer, PathClass> indexToPathClass;
 
@@ -114,33 +112,12 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             }
         }
 
-        // Find the region and downsample currently used within the viewer
-        if (promptMode == SAMPromptMode.XYZ) {
-            for (int z = builder.fromIndex; z <= builder.toIndex; z++) {
-                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z,
-                        viewer.getTPosition());
-                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
-                        viewer.getDownsampleFactor(),
-                        region);
-                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
-                viewerRegions.add(viewerRegion);
-            }
-            planePosition = viewer.getTPosition();
-        } else if (promptMode == SAMPromptMode.XYT) {
-            for (int t = builder.fromIndex; t <= builder.toIndex; t++) {
-                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                        t);
-                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
-                        viewer.getDownsampleFactor(),
-                        region);
-                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
-                viewerRegions.add(viewerRegion);
-            }
-            planePosition = viewer.getZPosition();
-        } else {
-            throw new IllegalArgumentException("Unsupported prompt mode: " + promptMode);
-        }
-        this.fromIndex = builder.fromIndex;
+        this.regionRequests.clear();
+        this.regionRequests.addAll(builder.regionRequests);
+
+        this.planePosition = builder.planePosition;
+
+        this.indexOffset = builder.indexOffset;
         this.objs = builder.objs;
 
         this.setName = builder.setName;
@@ -150,17 +127,17 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     }
 
     private boolean uploadImages(String dirname) throws IOException, InterruptedException {
-        int paddingWidth = String.valueOf(viewerRegions.size()).length();
+        int paddingWidth = String.valueOf(regionRequests.size()).length();
         String filenameFormat = String.format("%%0%dd.jpg", paddingWidth);
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicInteger progress = new AtomicInteger(0);
-        final int total = viewerRegions.size();
+        final int total = regionRequests.size();
         IntStream.range(0, total).parallel().forEach(i -> {
             if (cancelled.get())
                 return;
             final String boundary = "----------------" + System.currentTimeMillis();
             try {
-                final BufferedImage img = renderedServer.readRegion(viewerRegions.get(i));
+                final BufferedImage img = renderedServer.readRegion(regionRequests.get(i));
                 final String endpointURL = String.format("%supload/", serverURL);
                 MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create()
                         .setBoundary(boundary)
@@ -225,7 +202,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
             updateMessage("Processing done.");
-            return parseResponse(response, viewerRegions.get(0));
+            return parseResponse(response, regionRequests.get(0));
         } else {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
@@ -242,9 +219,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         for (PathObject pathObject : samObjects) {
             ImagePlane plane = pathObject.getROI().getImagePlane();
             if (promptMode == SAMPromptMode.XYZ) {
-                plane = ImagePlane.getPlane(fromIndex + plane.getZ(), plane.getT());
+                plane = ImagePlane.getPlane(indexOffset + plane.getZ(), plane.getT());
             } else if (promptMode == SAMPromptMode.XYT) {
-                plane = ImagePlane.getPlane(plane.getZ(), fromIndex + plane.getT());
+                plane = ImagePlane.getPlane(plane.getZ(), indexOffset + plane.getT());
             }
             PathClass pathClass = indexToPathClass.get(Integer.valueOf(pathObject.getPathClass().getName()));
             pathObject = Utils.applyTransformAndClassification(pathObject, transform, pathClass, plane);
@@ -278,6 +255,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private Map<Integer, List<SAM2VideoPromptObject>> objs;
 
         private ImageServer<BufferedImage> server;
+        private List<RegionRequest> regionRequests = new ArrayList<>();
 
         private String serverURL;
         private boolean verifySSL;
@@ -286,9 +264,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private boolean setRandomColor = true;
         private boolean setName = true;
         private String checkpointUrl;
-        private int fromIndex;
-        private int toIndex;
+        private int indexOffset;
         private Map<Integer, PathClass> indexToPathClass;
+        private int planePosition;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -366,6 +344,19 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         }
 
         /**
+         * Set the region requests to use.
+         * This is used to determine the region of interest for the objects created.
+         * 
+         * @param regionRequests
+         * @return this builder
+         */
+        public Builder regionRequests(final List<RegionRequest> regionRequests) {
+            this.regionRequests.clear();
+            this.regionRequests.addAll(regionRequests);
+            return this;
+        }
+
+        /**
          * Assign a random color to each unclassified object created.
          * Classified objects are not assigned a color, since their coloring comes from
          * the classification.
@@ -404,22 +395,11 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         /**
          * Specify the index to start from.
          * 
-         * @param fromIndex
+         * @param indexOffset
          * @return this builder
          */
-        public Builder fromIndex(final int fromIndex) {
-            this.fromIndex = fromIndex;
-            return this;
-        }
-
-        /**
-         * Specify the index to end at.
-         * 
-         * @param toIndex
-         * @return this builder
-         */
-        public Builder toIndex(final int toIndex) {
-            this.toIndex = toIndex;
+        public Builder indexOffset(final int indexOffset) {
+            this.indexOffset = indexOffset;
             return this;
         }
 
@@ -431,6 +411,18 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder indexToPathClass(final Map<Integer, PathClass> indexToPathClass) {
             this.indexToPathClass = indexToPathClass;
+            return this;
+        }
+
+        /**
+         * Specify the plane position.
+         * This is used to determine the plane for the objects created.
+         * 
+         * @param planePosition
+         * @return this builder
+         */
+        public Builder planePosition(final int planePosition) {
+            this.planePosition = planePosition;
             return this;
         }
 

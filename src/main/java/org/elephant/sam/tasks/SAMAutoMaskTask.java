@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javafx.concurrent.Task;
-import qupath.lib.awt.common.AwtTools;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
@@ -17,9 +16,7 @@ import qupath.lib.images.servers.ImageServer;
 import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
-import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.regions.ImagePlane;
-import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -50,10 +47,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private ImageServer<BufferedImage> renderedServer;
 
     /**
-     * The field of view visible within the viewer at the time the detection task
+     * In the GUI mode, the field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private RegionRequest viewerRegion;
+    private RegionRequest regionRequest;
 
     private final boolean setRandomColor;
     private final boolean setName;
@@ -121,12 +118,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
             }
         }
 
-        // Find the region and downsample currently used within the viewer
-        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                viewer.getTPosition());
-        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(),
-                region);
-        this.viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        this.regionRequest = builder.regionRequest;
+        if (this.regionRequest == null) {
+            this.regionRequest = Utils.getViewerRegion(viewer, renderedServer);
+        }
 
         this.outputType = builder.outputType;
         this.setName = builder.setName;
@@ -150,17 +145,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     @Override
     protected List<PathObject> call() throws Exception {
         try {
-            List<PathObject> detected = detectObjects();
-            if (!detected.isEmpty()) {
-                PathObjectHierarchy hierarchy = imageData.getHierarchy();
-                if (clearCurrentObjects)
-                    hierarchy.clearAll();
-                hierarchy.addObjects(detected);
-                hierarchy.getSelectionModel().clearSelection();
-            } else {
-                logger.warn("No objects detected");
-            }
-            return detected;
+            return detectObjects();
         } catch (InterruptedException e) {
             logger.warn("Interrupted while detecting objects", e);
             return Collections.emptyList();
@@ -172,8 +157,6 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         SAMAutoMaskParameters.Builder parametersBuilder = SAMAutoMaskParameters.builder(model);
 
-        // For SAM auto mask, use the current viewer region
-        RegionRequest regionRequest = this.viewerRegion;
         BufferedImage img = renderedServer.readRegion(regionRequest);
 
         final SAMAutoMaskParameters parameters = parametersBuilder
@@ -251,6 +234,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private QuPathViewer viewer;
 
         private ImageServer<BufferedImage> server;
+        private RegionRequest regionRequest;
 
         private String serverURL;
         private boolean verifySSL;
@@ -333,6 +317,17 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder server(final ImageServer<BufferedImage> server) {
             this.server = server;
+            return this;
+        }
+
+        /**
+         * Specify the region request (required).
+         * 
+         * @param regionRequest
+         * @return this builder
+         */
+        public Builder regionRequest(final RegionRequest regionRequest) {
+            this.regionRequest = regionRequest;
             return this;
         }
 

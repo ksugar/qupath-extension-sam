@@ -28,8 +28,19 @@ def bboxes = rows.collect {
     )
 }
 
+def server = getCurrentServer()
+def path = server.getPath()
+
+double downsample = 1.0
+int x = 0
+int y = 0
+int width = 450
+int height = 250
+
+def regionRequest = RegionRequest.createInstance(path, downsample, x, y, width, height)
 def task = SAMDetectionTask.builder(getCurrentViewer())
                 .serverURL("http://localhost:8000/sam/")
+                .regionRequest(regionRequest)
                 .addForegroundPrompts(bboxes)
                 .addBackgroundPrompts(Collections.emptyList())
                 .model(SAMType.VIT_L)

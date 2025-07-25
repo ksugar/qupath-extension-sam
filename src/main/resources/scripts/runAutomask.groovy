@@ -2,8 +2,20 @@ import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.tasks.SAMAutoMaskTask;
 
+def server = getCurrentServer()
+def path = server.getPath()
+
+double downsample = 1.0
+int x = 100
+int y = 100
+int width = 100
+int height = 100
+
+def regionRequest = RegionRequest.createInstance(path, downsample, x, y, width, height)
+
 def task = SAMAutoMaskTask.builder(getCurrentViewer())
                 .serverURL("http://localhost:8000/sam/")
+                .regionRequest(regionRequest)
                 .model(SAMType.VIT_L)
                 .outputType(SAMOutput.MULTI_SMALLEST)
                 .setName(true)

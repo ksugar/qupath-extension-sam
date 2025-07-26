@@ -1033,11 +1033,11 @@ public class SAMMainCommand implements Runnable {
                         });
                         Platform.runLater(task)
                         """,
+                        fromIndexProperty.get(),
+                        toIndexProperty.get(),
                         objsString,
                         indexToPathClassString,
                         regionRequestsString,
-                        fromIndexProperty.get(),
-                        toIndexProperty.get(),
                         serverURLProperty.get(),
                         verifySSLProperty.get(),
                         samTypeProperty.get().getFullyQualifiedName(),

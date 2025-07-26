@@ -13,6 +13,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Control;
 import javafx.scene.control.Label;
@@ -141,9 +142,16 @@ public class SAMMainPane extends GridPane {
         Label label = new Label("Server");
         label.setTooltip(tooltip);
         label.setLabelFor(labelUrl);
+
+        CheckBox checkBox = new CheckBox("Verify SSL");
+        checkBox.setSelected(false);
+        checkBox.selectedProperty().bindBidirectional(command.getVerifySSLProperty());
+        checkBox.setTooltip(new Tooltip("Enable or disable SSL verification"));
+
         add(label, 0, row);
         add(labelUrl, 1, row);
         add(btnEdit, 2, row);
+        add(checkBox, 3, row);
     }
 
     private void promptToSetUrl() {

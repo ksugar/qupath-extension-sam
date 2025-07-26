@@ -1,5 +1,160 @@
 # QuPath extension SAM
 
+### New release v0.8: Flexible Groovy scripting support is added!
+
+The command history is also now available from `Automate` > `Show workflow command history` and `Automate` > `Create command history script` in the menu bar.
+
+#### Example scripts
+
+<details><summary>SAMDetectionTask.groovy</summary>
+
+```groovy
+var foregroundObjects = [
+    PathObjects.createAnnotationObject(
+        ROIs.createRectangleROI(
+            433.000000, 194.000000, 21.000000, 37.000000,
+            new ImagePlane(-1, 0, 0)
+        ),
+        null
+    ),
+    PathObjects.createAnnotationObject(
+        ROIs.createRectangleROI(
+            416.000000, 174.000000, 23.000000, 32.000000,
+            new ImagePlane(-1, 0, 0)
+        ),
+        null
+    ),
+]
+var backgroundObjects = []
+var task = org.elephant.sam.tasks.SAMDetectionTask.builder(getCurrentViewer())
+    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+    .regionRequest(RegionRequest.createInstance(getCurrentServer().getPath(), 0.934228, 0, 0, 696, 520, 0, 0))
+    .serverURL("http://localhost:8000/sam/")
+    .verifySSL(false)
+    .model(org.elephant.sam.entities.SAMType.VIT_T)
+    .outputType(org.elephant.sam.entities.SAMOutput.MULTI_SMALLEST)
+    .setName(true)
+    .setRandomColor(true)
+    .checkpointUrl("https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt")
+    .addForegroundPrompts(foregroundObjects)
+    .addBackgroundPrompts(backgroundObjects)
+    .build()
+task.setOnSucceeded(event -> {
+    List<PathObject> detected = task.getValue()
+    if (detected != null) {
+        if (!detected.isEmpty()) {
+            Platform.runLater(() -> {
+                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                hierarchy.addObjects(detected)
+                hierarchy.getSelectionModel().clearSelection()
+                hierarchy.fireHierarchyChangedEvent(this)
+            });
+        } else {
+            print("No objects detected")
+        }
+    }
+});
+Platform.runLater(task)
+```
+</details>
+
+<details><summary>SAMAutoMaskTask.groovy</summary>
+
+```groovy
+var clearCurrentObjects = true
+var task = org.elephant.sam.tasks.SAMAutoMaskTask.builder(getCurrentViewer())
+    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+    .regionRequest(RegionRequest.createInstance(getCurrentServer().getPath(), 0.934228, 0, 0, 696, 520, 0, 0))
+    .serverURL("http://localhost:8000/sam/")
+    .verifySSL(false)
+    .model(org.elephant.sam.entities.SAMType.VIT_T)
+    .outputType(org.elephant.sam.entities.SAMOutput.MULTI_SMALLEST)
+    .setName(true)
+    .clearCurrentObjects(clearCurrentObjects)
+    .setRandomColor(true)
+    .pointsPerSide(64)
+    .pointsPerBatch(8)
+    .predIoUThresh(0.880000)
+    .stabilityScoreThresh(0.950000)
+    .stabilityScoreOffset(1.000000)
+    .boxNmsThresh(0.200000)
+    .cropNLayers(0)
+    .cropNmsThresh(0.700000)
+    .cropOverlapRatio(0.340000)
+    .cropNPointsDownscaleFactor(1)
+    .minMaskRegionArea(0)
+    .includeImageEdge(false)
+    .checkpointUrl("https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/mobile_sam.pt")
+    .build()
+task.setOnSucceeded(event -> {
+    List<PathObject> detected = task.getValue()
+    if (detected != null) {
+        if (!detected.isEmpty()) {
+            Platform.runLater(() -> {
+                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                if (clearCurrentObjects)
+                    hierarchy.clearAll()
+                hierarchy.addObjects(detected)
+                hierarchy.getSelectionModel().clearSelection()
+                hierarchy.fireHierarchyChangedEvent(this)
+            });
+        } else {
+            print("No objects detected")
+        }
+    }
+});
+Platform.runLater(task)
+```
+</details>
+
+<details><summary>SAMSequenceTask.groovy</summary>
+
+```groovy
+def fromIndex = 20
+def toIndex = 40
+var objs = [
+    11: [org.elephant.sam.parameters.SAM2VideoPromptObject.builder(0).bbox(352, 142, 463, 287).build(),]
+]
+var indexToPathClass = [
+    0: PathClass.getInstance("SAM0"),
+]
+var regionRequests = (fromIndex..toIndex).collect {RegionRequest.createInstance(getCurrentServer().getPath(), 0.687248, 0, 0, 512, 443, 0, it)}}
+var task = org.elephant.sam.tasks.SAMSequenceTask.builder(getCurrentViewer())
+    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+    .regionRequests(regionRequests)
+    .serverURL("http://localhost:8000/sam/")
+    .verifySSL(false)
+    .model(org.elephant.sam.entities.SAMType.SAM2_S)
+    .promptMode(org.elephant.sam.entities.SAMPromptMode.XYT)
+    .objs(objs)
+    .checkpointUrl("https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_small.pt")
+    .indexOffset(fromIndex)
+    .indexToPathClass(indexToPathClass)
+    .planePosition(0)
+    .build()
+task.setOnSucceeded(event -> {
+    List<PathObject> detected = task.getValue()
+    if (detected != null) {
+        if (!detected.isEmpty()) {
+            Platform.runLater(() -> {
+                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                indexToPathClass.values().stream()
+                        .filter(pathClass -> !getQuPath().getAvailablePathClasses().contains(pathClass))
+                        .sorted(Comparator.comparing(PathClass::getName, new org.elephant.sam.comparators.NaturalOrderComparator()))
+                        .forEachOrdered(pathClass -> getQuPath().getAvailablePathClasses().add(pathClass))
+                hierarchy.addObjects(detected)
+                hierarchy.getSelectionModel().clearSelection()
+                hierarchy.fireHierarchyChangedEvent(this)
+            });
+        } else {
+            print("No objects detected")
+        }
+    }
+});
+Platform.runLater(task)
+```
+</details>
+
 ### New release v0.7: SAM2-based 2D+T tracking and 3D segmentation are supported now!
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/sam2-sequence-demo.gif" width="768">
 
@@ -15,7 +170,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.7.0/qupath-extension-sam-0.7.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.8.0/qupath-extension-sam-0.8.0.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
 
@@ -36,8 +191,17 @@ To update the `qupath-extension-sam`, follow the following instructions.
 2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.7.0/qupath-extension-sam-0.7.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 3. Restart QuPath application.
 
-Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.5.0) server.  
+Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.6.1) server.  
 To keep updated with the latest samapi server, follow the instructions [here](https://github.com/ksugar/samapi#update).
+
+Starting from QuPath `v0.6`, you can receive notifications about new releases of the extension by adding the following settings.
+
+1. Open QuPath
+2. Go to Extensions → Manage extensions
+3. Click Manage extension catalogs
+4. Enter the catalog URL: https://github.com/ksugar/qupath-catalog-ksugar
+5. Browse and install the extensions you need
+
 
 ## Usage
 
@@ -189,6 +353,9 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
 ## Updates
+
+### v0.8.0
+- Support flexible Groovy scripts to run SAM tasks. See [the example scripts](#example-scripts).
 
 ### v0.7.0
 - Support 2D+T tracking and 3D segmentation with [SAM2](https://ai.meta.com/sam2/) models, available with the [samapi](https://github.com/ksugar/samapi) server `v0.6.0` and above.

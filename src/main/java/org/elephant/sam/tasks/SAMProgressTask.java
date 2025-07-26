@@ -2,16 +2,16 @@ package org.elephant.sam.tasks;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Objects;
+
 import org.elephant.sam.entities.SAMProgress;
+import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+
 import javafx.concurrent.Task;
 import qupath.lib.io.GsonTools;
 
@@ -27,20 +27,19 @@ public class SAMProgressTask extends Task<Boolean> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     public SAMProgressTask(Builder builder) {
         this.serverURL = builder.serverURL;
+        this.verifySSL = builder.verifySSL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
     }
 
     @Override
     protected Boolean call() throws InterruptedException, IOException {
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%sprogress/", serverURL)))
-                .build();
+        final String endpointURL = String.format("%sprogress/", serverURL);
         while (!isCancelled()) {
-            final HttpClient client = HttpClient.newHttpClient();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HttpUtils.getRequest(endpointURL, verifySSL);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 SAMProgress progress = parseResponse(response);
                 int percent = progress.getPercent();
@@ -78,8 +77,21 @@ public class SAMProgressTask extends Task<Boolean> {
 
         private String serverURL;
 
+        private boolean verifySSL;
+
         public Builder serverURL(String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify whether to verify SSL (required).
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 

@@ -24,4 +24,13 @@ public enum SAMOutput {
         }
         throw new IllegalArgumentException("Unknown SAM output");
     }
+
+    /**
+     * Get the fully qualified name including package.
+     *
+     * @return fully qualified name
+     */
+    public String getFullyQualifiedName() {
+        return this.getClass().getName() + "." + this.name();
+    }
 }

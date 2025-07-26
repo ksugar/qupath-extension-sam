@@ -18,6 +18,7 @@ public class SAM2VideoPromptObject {
 	private int[] point_labels;
 	@SuppressWarnings("unused")
 	private int[] bbox;
+	private String builderAsGroovyScript;
 
 	public SAM2VideoPromptObject(final Builder builder) {
 		Objects.requireNonNull(builder.obj_id, "Object ID must be specified");
@@ -41,6 +42,11 @@ public class SAM2VideoPromptObject {
 				ind++;
 			}
 		}
+		builderAsGroovyScript = builder.builderAsGroovyScript();
+	}
+
+	public String getBuilderAsGroovyScript() {
+		return builderAsGroovyScript;
 	}
 
 	/**
@@ -109,6 +115,26 @@ public class SAM2VideoPromptObject {
 		 */
 		public SAM2VideoPromptObject build() {
 			return new SAM2VideoPromptObject(this);
+		}
+
+		public String builderAsGroovyScript() {
+			StringBuilder sb = new StringBuilder();
+			sb.append("org.elephant.sam.parameters.SAM2VideoPromptObject.builder(").append(obj_id).append(")");
+			if (bbox != null) {
+				sb.append(".bbox(").append(bbox[0]).append(", ").append(bbox[1]).append(", ")
+						.append(bbox[2]).append(", ").append(bbox[3]).append(")");
+			}
+			if (!foreground.isEmpty()) {
+				sb.append(".addToForeground([");
+				foreground.forEach(c -> sb.append(String.format("{x: %d, y: %d}, ", (int) c.x, (int) c.y)));
+				sb.delete(sb.length() - 2, sb.length()).append("])");
+			}
+			if (!background.isEmpty()) {
+				sb.append(".addToBackground([");
+				background.forEach(c -> sb.append(String.format("{x: %d, y: %d}, ", (int) c.x, (int) c.y)));
+				sb.delete(sb.length() - 2, sb.length()).append("])");
+			}
+			return sb.toString();
 		}
 	}
 }

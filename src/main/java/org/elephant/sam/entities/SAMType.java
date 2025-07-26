@@ -34,6 +34,15 @@ public enum SAMType {
         throw new IllegalArgumentException("Unknown SAM model");
     }
 
+    /**
+     * Get the fully qualified name including package.
+     * 
+     * @return fully qualified name
+     */
+    public String getFullyQualifiedName() {
+        return this.getClass().getName() + "." + this.name();
+    }
+
     @Override
     public String toString() {
         // Provide a more user-friendly name

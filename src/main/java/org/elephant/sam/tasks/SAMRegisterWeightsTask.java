@@ -1,17 +1,13 @@
 package org.elephant.sam.tasks;
 
-import com.google.gson.Gson;
-import javafx.concurrent.Task;
-
 import org.elephant.sam.entities.SAMWeights;
+import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javafx.concurrent.Task;
 import qupath.lib.io.GsonTools;
-import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Objects;
 
@@ -27,6 +23,8 @@ public class SAMRegisterWeightsTask extends Task<String> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     private final String samType;
 
     private final String name;
@@ -36,6 +34,9 @@ public class SAMRegisterWeightsTask extends Task<String> {
     private SAMRegisterWeightsTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
+
+        this.verifySSL = builder.verifySSL;
+        Objects.requireNonNull(verifySSL, "Verify SSL must not be null!");
 
         this.samType = builder.samType;
         Objects.requireNonNull(samType, "Model type must not be null!");
@@ -49,40 +50,23 @@ public class SAMRegisterWeightsTask extends Task<String> {
 
     @Override
     protected String call() throws Exception {
-        try {
-            if (isCancelled())
-                return "Registration task cancelled";
-
-            HttpResponse<String> response = sendRequest(serverURL, new SAMWeights(samType, name, url));
-
-            if (isCancelled())
-                return "Registration task cancelled";
-
-            if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-                return response.body();
-            } else {
-                logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
-                return "Registration request failed";
-            }
-        } catch (InterruptedException e) {
-            logger.warn("Interrupted while registering URLs", e);
+        if (isCancelled())
             return "Registration task cancelled";
-        }
-    }
 
-    private static HttpResponse<String> sendRequest(String serverURL, SAMWeights samWeights)
-            throws IOException, InterruptedException {
-        final Gson gson = GsonTools.getInstance();
-        final String body = gson.toJson(samWeights);
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%sweights/", serverURL)))
-                .header("accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpClient client = HttpClient.newHttpClient();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+        final String endpointURL = String.format("%sweights/", serverURL);
+        final SAMWeights samWeights = new SAMWeights(samType, name, url);
+        HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
+                GsonTools.getInstance().toJson(samWeights));
+
+        if (isCancelled())
+            return "Registration task cancelled";
+
+        if (response.statusCode() == HttpURLConnection.HTTP_OK) {
+            return response.body();
+        } else {
+            logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
+            return "Registration request failed";
+        }
     }
 
     /**
@@ -97,6 +81,7 @@ public class SAMRegisterWeightsTask extends Task<String> {
     public static class Builder {
 
         private String serverURL;
+        private boolean verifySSL;
         private String samType;
         private String name;
         private String url;
@@ -109,6 +94,17 @@ public class SAMRegisterWeightsTask extends Task<String> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify whether to verify SSL (required).
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 

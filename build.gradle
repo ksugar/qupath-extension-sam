@@ -13,7 +13,7 @@ plugins {
 ext.moduleName = 'org.elephant.sam.qupath'
 
 // TODO: Define the extension version & provide a short description
-version = "0.7.0"
+version = "0.8.0"
 description = 'QuPath extension for Segment Anything Model (SAM)'
 
 // TODO: Specify the QuPath version, compatible with the extension.
@@ -48,6 +48,8 @@ dependencies {
     // https://github.com/qupath/qupath/blob/main/gradle/libs.versions.toml
     // See https://docs.gradle.org/current/userguide/platforms.html
     shadow libs.slf4j
+
+    implementation "org.apache.httpcomponents.client5:httpclient5:5.4.1"
 
     testImplementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
     testImplementation libs.junit

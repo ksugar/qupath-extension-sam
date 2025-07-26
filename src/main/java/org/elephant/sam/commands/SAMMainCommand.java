@@ -70,6 +70,7 @@ import qupath.lib.objects.classes.PathClassTools;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyEvent;
 import qupath.lib.objects.hierarchy.events.PathObjectHierarchyListener;
+import qupath.lib.plugins.workflow.DefaultScriptableWorkflowStep;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.PointsROI;
 import qupath.lib.roi.RectangleROI;
@@ -100,6 +101,17 @@ public class SAMMainCommand implements Runnable {
 
     public StringProperty getServerURLProperty() {
         return serverURLProperty;
+    }
+
+    /**
+     * Specify whether to verify SSL.
+     */
+    private static final boolean DEFAULT_VERIFY_SSL = false;
+    private final BooleanProperty verifySSLProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.verifySSL", DEFAULT_VERIFY_SSL);
+
+    public BooleanProperty getVerifySSLProperty() {
+        return verifySSLProperty;
     }
 
     /**
@@ -611,8 +623,20 @@ public class SAMMainCommand implements Runnable {
             updateInfoTextWithError("ImageData doesn't match what's in the viewer!");
             return;
         }
+        ImageServer<BufferedImage> renderedServer;
+        try {
+            renderedServer = Utils.createRenderedServer(viewer);
+        } catch (IOException e) {
+            logger.error("Failed to create rendered server", e);
+            updateInfoTextWithError("Failed to create rendered server: " + e.getMessage());
+            return;
+        }
+        RegionRequest regionRequest = Utils.getViewerRegion(viewer, renderedServer);
         SAMAutoMaskTask task = SAMAutoMaskTask.builder(qupath.getViewer())
+                .server(renderedServer)
+                .regionRequest(regionRequest)
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .model(samTypeProperty.get())
                 .outputType(outputTypeProperty.get())
                 .setName(setNamesProperty.get())
@@ -632,7 +656,94 @@ public class SAMMainCommand implements Runnable {
                 .includeImageEdge(includeImageEdgeProperty.get())
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
                 .build();
+        task.setOnSucceeded(event -> {
+            List<PathObject> detected = task.getValue();
+            if (detected != null) {
+                if (!detected.isEmpty()) {
+                    Platform.runLater(() -> {
+                        PathObjectHierarchy hierarchy = imageData.getHierarchy();
+                        if (clearCurrentObjectsProperty.get())
+                            hierarchy.clearAll();
+                        hierarchy.addObjects(detected);
+                        hierarchy.getSelectionModel().clearSelection();
+                        hierarchy.fireHierarchyChangedEvent(this);
+                    });
+                } else {
+                    logger.warn("No objects detected");
+                }
+            }
+        });
         submitTask(task);
+
+        final String cmd = String.format("""
+                var clearCurrentObjects = %b
+                var task = org.elephant.sam.tasks.SAMAutoMaskTask.builder(getCurrentViewer())
+                    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+                    .regionRequest(%s)
+                    .serverURL("%s")
+                    .verifySSL(%b)
+                    .model(%s)
+                    .outputType(%s)
+                    .setName(%b)
+                    .clearCurrentObjects(clearCurrentObjects)
+                    .setRandomColor(%b)
+                    .pointsPerSide(%d)
+                    .pointsPerBatch(%d)
+                    .predIoUThresh(%f)
+                    .stabilityScoreThresh(%f)
+                    .stabilityScoreOffset(%f)
+                    .boxNmsThresh(%f)
+                    .cropNLayers(%d)
+                    .cropNmsThresh(%f)
+                    .cropOverlapRatio(%f)
+                    .cropNPointsDownscaleFactor(%d)
+                    .minMaskRegionArea(%d)
+                    .includeImageEdge(%b)
+                    .checkpointUrl("%s")
+                    .build()
+                task.setOnSucceeded(event -> {
+                    List<PathObject> detected = task.getValue()
+                    if (detected != null) {
+                        if (!detected.isEmpty()) {
+                            Platform.runLater(() -> {
+                                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                                if (clearCurrentObjects)
+                                    hierarchy.clearAll()
+                                hierarchy.addObjects(detected)
+                                hierarchy.getSelectionModel().clearSelection()
+                                hierarchy.fireHierarchyChangedEvent(this)
+                            });
+                        } else {
+                            print("No objects detected")
+                        }
+                    }
+                });
+                Platform.runLater(task)
+                """,
+                clearCurrentObjectsProperty.get(),
+                Utils.getGroovyScriptForCreateRegionRequest(regionRequest),
+                serverURLProperty.get(),
+                verifySSLProperty.get(),
+                samTypeProperty.get().getFullyQualifiedName(),
+                outputTypeProperty.get().getFullyQualifiedName(),
+                setNamesProperty.get(),
+                useRandomColorsProperty.get(),
+                pointsPerSideProperty.get(),
+                pointsPerBatchProperty.get(),
+                predIoUThreshProperty.get(),
+                stabilityScoreThreshProperty.get(),
+                stabilityScoreOffsetProperty.get(),
+                boxNmsThreshProperty.get(),
+                cropNLayersProperty.get(),
+                cropNmsThreshProperty.get(),
+                cropOverlapRatioProperty.get(),
+                cropNPointsDownscaleFactorProperty.get(),
+                minMaskRegionAreaProperty.get(),
+                includeImageEdgeProperty.get(),
+                selectedWeightsProperty.get().getUrl())
+                .strip();
+        imageData.getHistoryWorkflow().addStep(
+                new DefaultScriptableWorkflowStep("SAMAutoMask", cmd));
     }
 
     private PathClass getNextPathClass(Collection<String> samPathClassNames) {
@@ -674,9 +785,11 @@ public class SAMMainCommand implements Runnable {
             selectedObjects = selectedObjects.stream().filter((pathObject) -> {
                 return ((pathObject.getROI().getZ() == viewer.getZPosition()));
             }).collect(Collectors.toSet());
+        } else {
+            throw new IllegalArgumentException("Unsupported prompt mode: " + samPromptModeProperty.get());
         }
         List<PathObject> topLevelObjects = getTopLevelObjects(selectedObjects);
-        Map<Integer, RegionRequest> regionRequests = new HashMap<>();
+        Map<Integer, RegionRequest> regionRequestMap = new HashMap<>();
         Map<Integer, List<SAM2VideoPromptObject>> objs = new HashMap<>();
         ImageServer<BufferedImage> renderedServer = null;
         try {
@@ -684,7 +797,6 @@ public class SAMMainCommand implements Runnable {
         } catch (IOException e) {
             logger.error("Failed to create rendered server", e);
         }
-        RegionRequest regionRequest = null;
         int objsKey = -1;
         Collection<String> samPathClassNames = qupath.getViewer().getHierarchy().getAnnotationObjects().stream()
                 .filter(pathObject -> !PathClassTools.isNullClass(pathObject.getPathClass()))
@@ -709,16 +821,22 @@ public class SAMMainCommand implements Runnable {
             }
             Builder builder = SAM2VideoPromptObject.builder(objectIndex);
             final ROI roi = topLevelObject.getROI();
+            RegionRequest regionRequest = null;
             if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
                 objsKey = roi.getZ();
-                regionRequest = regionRequests.getOrDefault(objsKey,
+                regionRequest = regionRequestMap.getOrDefault(objsKey,
                         Utils.getViewerRegion(viewer, renderedServer, roi.getZ(), viewer.getTPosition()));
             } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
                 objsKey = roi.getT();
-                regionRequest = regionRequests.getOrDefault(objsKey,
+                regionRequest = regionRequestMap.getOrDefault(objsKey,
                         Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), roi.getT()));
             }
             objsKey -= fromIndexProperty.get();
+            if (objsKey < 0 || objsKey > toIndexProperty.get() - fromIndexProperty.get()) {
+                logger.warn("Skipping object {} with index {} as it is outside the specified range", topLevelObject,
+                        objsKey);
+                continue;
+            }
             if (roi instanceof PointsROI) {
                 PointsROI pointsROI = (PointsROI) roi;
                 if (isForegroundObject(topLevelObject)) {
@@ -761,18 +879,37 @@ public class SAMMainCommand implements Runnable {
             objs.put(objsKey, objectList);
         }
         if (objs.isEmpty()) {
-            updateInfoText("No prompts specified");
+            updateInfoTextWithError("No prompts found in the specified range!");
             return;
         }
+        final List<RegionRequest> regionRequests = new ArrayList<>();
+        int planePosition = -1;
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            for (int z = fromIndexProperty.get(); z <= toIndexProperty.get(); z++) {
+                RegionRequest viewerRegion = Utils.getViewerRegion(viewer, renderedServer, z, viewer.getTPosition());
+                regionRequests.add(viewerRegion);
+            }
+            planePosition = viewer.getTPosition();
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            for (int t = fromIndexProperty.get(); t <= toIndexProperty.get(); t++) {
+                RegionRequest viewerRegion = Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), t);
+                regionRequests.add(viewerRegion);
+            }
+            planePosition = viewer.getZPosition();
+        } else {
+            throw new IllegalArgumentException("Unsupported prompt mode: " + samPromptModeProperty.get());
+        }
         SAMSequenceTask task = SAMSequenceTask.builder(qupath.getViewer())
+                .regionRequests(regionRequests)
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .model(samTypeProperty.get())
                 .promptMode(samPromptModeProperty.get())
                 .objs(objs)
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
-                .fromIndex(fromIndexProperty.get())
-                .toIndex(toIndexProperty.get())
+                .indexOffset(fromIndexProperty.get())
                 .indexToPathClass(indexToPathClass)
+                .planePosition(planePosition)
                 .build();
         task.messageProperty().addListener((observable, oldValue, newValue) -> {
             updateInfoText(newValue);
@@ -793,7 +930,8 @@ public class SAMMainCommand implements Runnable {
                                 .sorted(Comparator.comparing(PathClass::getName, new NaturalOrderComparator()))
                                 .forEachOrdered(pathClass -> qupath.getAvailablePathClasses().add(pathClass));
                         hierarchy.addObjects(detected);
-                        hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
+                        hierarchy.getSelectionModel().clearSelection();
+                        hierarchy.fireHierarchyChangedEvent(this);
                     });
                 } else {
                     logger.warn("No objects detected");
@@ -801,6 +939,114 @@ public class SAMMainCommand implements Runnable {
             }
         });
         submitTask(task);
+
+        StringBuilder sbObjs = new StringBuilder();
+        sbObjs.append("[\n");
+        int i = 0;
+        for (Map.Entry<Integer, List<SAM2VideoPromptObject>> entry : objs.entrySet()) {
+            if (i++ > 0)
+                sbObjs.append(",\n");
+            int key = entry.getKey();
+            sbObjs.append(String.format("    %d: ", key));
+            List<SAM2VideoPromptObject> promptObjectList = entry.getValue();
+            if (promptObjectList.isEmpty())
+                continue;
+            sbObjs.append("[");
+            for (SAM2VideoPromptObject promptObject : promptObjectList) {
+                sbObjs.append(promptObject.getBuilderAsGroovyScript());
+                sbObjs.append(".build(),");
+            }
+            sbObjs.append("]");
+        }
+        sbObjs.append("\n]");
+        String objsString = sbObjs.toString();
+
+        StringBuffer sbIndexToPathClass = new StringBuffer();
+        sbIndexToPathClass.append("[\n");
+        for (Map.Entry<Integer, PathClass> entry : indexToPathClass.entrySet()) {
+            sbIndexToPathClass.append(
+                    String.format("""
+                                %d: PathClass.getInstance("%s"),
+                            """,
+                            entry.getKey(),
+                            entry.getValue().getName()));
+        }
+        sbIndexToPathClass.append("]");
+        String indexToPathClassString = sbIndexToPathClass.toString();
+
+        StringBuffer sbRegionRequests = new StringBuffer();
+        if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
+            sbRegionRequests.append(
+                    String.format("(%d..%d).collect {%s}}",
+                            fromIndexProperty.get(),
+                            toIndexProperty.get(),
+                            Utils.getGroovyScriptForCreateRegionRequest(
+                                    Utils.getViewerRegion(viewer, renderedServer, 0, viewer.getTPosition()), "Z")));
+        } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
+            sbRegionRequests.append(
+                    String.format("(fromIndex..toIndex).collect {%s}}",
+                            Utils.getGroovyScriptForCreateRegionRequest(
+                                    Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), 0), "T")));
+        } else {
+            throw new IllegalArgumentException("Unsupported prompt mode: " + samPromptModeProperty.get());
+        }
+        String regionRequestsString = sbRegionRequests.toString();
+
+        final String cmd = String
+                .format("""
+                        def fromIndex = %d
+                        def toIndex = %d
+                        var objs = %s
+                        var indexToPathClass = %s
+                        var regionRequests = %s
+                        var task = org.elephant.sam.tasks.SAMSequenceTask.builder(getCurrentViewer())
+                            .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+                            .regionRequests(regionRequests)
+                            .serverURL("%s")
+                            .verifySSL(%b)
+                            .model(%s)
+                            .promptMode(%s)
+                            .objs(objs)
+                            .checkpointUrl("%s")
+                            .indexOffset(fromIndex)
+                            .indexToPathClass(indexToPathClass)
+                            .planePosition(%d)
+                            .build()
+                        task.setOnSucceeded(event -> {
+                            List<PathObject> detected = task.getValue()
+                            if (detected != null) {
+                                if (!detected.isEmpty()) {
+                                    Platform.runLater(() -> {
+                                        PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                                        indexToPathClass.values().stream()
+                                                .filter(pathClass -> !getQuPath().getAvailablePathClasses().contains(pathClass))
+                                                .sorted(Comparator.comparing(PathClass::getName, new org.elephant.sam.comparators.NaturalOrderComparator()))
+                                                .forEachOrdered(pathClass -> getQuPath().getAvailablePathClasses().add(pathClass))
+                                        hierarchy.addObjects(detected)
+                                        hierarchy.getSelectionModel().clearSelection()
+                                        hierarchy.fireHierarchyChangedEvent(this)
+                                    });
+                                } else {
+                                    print("No objects detected")
+                                }
+                            }
+                        });
+                        Platform.runLater(task)
+                        """,
+                        fromIndexProperty.get(),
+                        toIndexProperty.get(),
+                        objsString,
+                        indexToPathClassString,
+                        regionRequestsString,
+                        serverURLProperty.get(),
+                        verifySSLProperty.get(),
+                        samTypeProperty.get().getFullyQualifiedName(),
+                        samPromptModeProperty.get().getFullyQualifiedName(),
+                        selectedWeightsProperty.get().getUrl(),
+                        planePosition)
+                .strip();
+        imageData.getHistoryWorkflow().addStep(
+                new DefaultScriptableWorkflowStep("SAMSequence", cmd));
     }
 
     /**
@@ -856,6 +1102,7 @@ public class SAMMainCommand implements Runnable {
     public void submitFetchWeightsTask(SAMType samType) {
         SAMFetchWeightsTask task = SAMFetchWeightsTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .samType(samType)
                 .build();
         task.setOnSucceeded(event -> {
@@ -876,6 +1123,7 @@ public class SAMMainCommand implements Runnable {
     public void submitCancelDownloadTask() {
         SAMCancelDownloadTask task = SAMCancelDownloadTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .build();
         submitTask(task);
     }
@@ -886,6 +1134,7 @@ public class SAMMainCommand implements Runnable {
     public SAMProgressTask submitProgressTask() {
         SAMProgressTask task = SAMProgressTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .build();
         submitTask(task);
         return task;
@@ -897,6 +1146,7 @@ public class SAMMainCommand implements Runnable {
     public void submitRegisterWeightsTask(SAMWeights samWeights, SAMProgressTask progressTask) {
         SAMRegisterWeightsTask task = SAMRegisterWeightsTask.builder()
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .samType(samWeights.getType())
                 .name(samWeights.getName())
                 .url(samWeights.getUrl())
@@ -946,15 +1196,27 @@ public class SAMMainCommand implements Runnable {
         }
         logger.info("Submitting task for {} foreground and {} background objects",
                 foregroundObjects.size(), backgroundObjects.size());
+        ImageServer<BufferedImage> renderedServer;
+        try {
+            renderedServer = Utils.createRenderedServer(qupath.getViewer());
+        } catch (IOException e) {
+            logger.error("Failed to create rendered server", e);
+            updateInfoTextWithError("Failed to create rendered server: " + e.getMessage());
+            return;
+        }
+        RegionRequest regionRequest = Utils.getViewerRegion(qupath.getViewer(), renderedServer);
         SAMDetectionTask task = SAMDetectionTask.builder(qupath.getViewer())
-                .addForegroundPrompts(foregroundObjects)
-                .addBackgroundPrompts(backgroundObjects)
+                .server(renderedServer)
+                .regionRequest(regionRequest)
                 .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
                 .model(samTypeProperty.get())
                 .outputType(outputTypeProperty.get())
                 .setName(setNamesProperty.get())
                 .setRandomColor(useRandomColorsProperty.get())
                 .checkpointUrl(selectedWeightsProperty.get().getUrl())
+                .addForegroundPrompts(foregroundObjects)
+                .addBackgroundPrompts(backgroundObjects)
                 .build();
         task.setOnSucceeded(event -> {
             List<PathObject> detected = task.getValue();
@@ -976,6 +1238,105 @@ public class SAMMainCommand implements Runnable {
             }
         });
         submitTask(task);
+
+        StringBuilder sbForegroundObjects = new StringBuilder();
+        sbForegroundObjects.append("[\n");
+        for (PathObject pathObject : foregroundObjects) {
+            if (pathObject.getROI() instanceof PointsROI) {
+                PointsROI pointsROI = (PointsROI) pathObject.getROI();
+                sbForegroundObjects
+                        .append("    PathObjects.createAnnotationObject(\n");
+                sbForegroundObjects
+                        .append("        " + Utils.getGroovyScriptForCreatePointsROI(pointsROI));
+                sbForegroundObjects.append(",\n");
+                sbForegroundObjects
+                        .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()) + "\n");
+                sbForegroundObjects.append("    ),\n");
+            } else if (pathObject.getROI() instanceof RectangleROI) {
+                RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
+                sbForegroundObjects
+                        .append("    PathObjects.createAnnotationObject(\n");
+                sbForegroundObjects
+                        .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
+                sbForegroundObjects
+                        .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
+                sbForegroundObjects.append("\n");
+                sbForegroundObjects.append("    ");
+                sbForegroundObjects.append("),");
+                sbForegroundObjects.append("\n");
+            }
+        }
+        sbForegroundObjects.append("]");
+
+        StringBuilder sbBackgroundObjects = new StringBuilder();
+        if (backgroundObjects.isEmpty()) {
+            sbBackgroundObjects.append("[]");
+        } else {
+            sbBackgroundObjects.append("[\n");
+            int i = 0;
+            for (PathObject pathObject : backgroundObjects) {
+                if (pathObject.getROI() instanceof PointsROI) {
+                    if (i++ > 0)
+                        sbBackgroundObjects.append(",\n");
+                    PointsROI pointsROI = (PointsROI) pathObject.getROI();
+                    sbBackgroundObjects
+                            .append("    PathObjects.createAnnotationObject(\n");
+                    sbBackgroundObjects
+                            .append("        " + Utils.getGroovyScriptForCreatePointsROI(pointsROI));
+                    sbBackgroundObjects.append(",\n");
+                    sbBackgroundObjects
+                            .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()) + "\n");
+                    sbBackgroundObjects.append("    )");
+                }
+            }
+            sbBackgroundObjects.append("]");
+        }
+        final String cmd = String.format("""
+                var foregroundObjects = %s
+                var backgroundObjects = %s
+                var task = org.elephant.sam.tasks.SAMDetectionTask.builder(getCurrentViewer())
+                    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+                    .regionRequest(%s)
+                    .serverURL("%s")
+                    .verifySSL(%b)
+                    .model(%s)
+                    .outputType(%s)
+                    .setName(%b)
+                    .setRandomColor(%b)
+                    .checkpointUrl("%s")
+                    .addForegroundPrompts(foregroundObjects)
+                    .addBackgroundPrompts(backgroundObjects)
+                    .build()
+                task.setOnSucceeded(event -> {
+                    List<PathObject> detected = task.getValue()
+                    if (detected != null) {
+                        if (!detected.isEmpty()) {
+                            Platform.runLater(() -> {
+                                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                                hierarchy.addObjects(detected)
+                                hierarchy.getSelectionModel().clearSelection()
+                                hierarchy.fireHierarchyChangedEvent(this)
+                            });
+                        } else {
+                            print("No objects detected")
+                        }
+                    }
+                });
+                Platform.runLater(task)
+                """,
+                sbForegroundObjects.toString(),
+                sbBackgroundObjects.toString(),
+                Utils.getGroovyScriptForCreateRegionRequest(regionRequest),
+                serverURLProperty.get(),
+                verifySSLProperty.get(),
+                samTypeProperty.get().getFullyQualifiedName(),
+                outputTypeProperty.get().getFullyQualifiedName(),
+                setNamesProperty.get(),
+                useRandomColorsProperty.get(),
+                selectedWeightsProperty.get().getUrl())
+                .strip();
+        imageDataProperty.get().getHistoryWorkflow().addStep(
+                new DefaultScriptableWorkflowStep("SAMDetection", cmd));
     }
 
     /**

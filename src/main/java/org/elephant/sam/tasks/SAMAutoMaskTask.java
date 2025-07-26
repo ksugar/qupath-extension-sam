@@ -1,15 +1,14 @@
 package org.elephant.sam.tasks;
 
-import com.google.gson.Gson;
-import javafx.concurrent.Task;
-
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
+import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.parameters.SAMAutoMaskParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.lib.awt.common.AwtTools;
+
+import javafx.concurrent.Task;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
@@ -17,19 +16,17 @@ import qupath.lib.images.servers.ImageServer;
 import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
-import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.regions.ImagePlane;
-import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A task to perform SAM detection on a given image.
@@ -50,10 +47,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private ImageServer<BufferedImage> renderedServer;
 
     /**
-     * The field of view visible within the viewer at the time the detection task
+     * In the GUI mode, the field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private RegionRequest viewerRegion;
+    private RegionRequest regionRequest;
 
     private final boolean setRandomColor;
     private final boolean setName;
@@ -61,6 +58,8 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     private final SAMOutput outputType;
 
     private final String serverURL;
+
+    private final boolean verifySSL;
 
     private final SAMType model;
 
@@ -94,6 +93,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
 
+        this.verifySSL = builder.verifySSL;
+        Objects.requireNonNull(verifySSL, "VerifySSL must not be null!");
+
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
 
@@ -116,12 +118,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
             }
         }
 
-        // Find the region and downsample currently used within the viewer
-        ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                viewer.getTPosition());
-        this.viewerRegion = RegionRequest.createInstance(renderedServer.getPath(), viewer.getDownsampleFactor(),
-                region);
-        this.viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        this.regionRequest = builder.regionRequest;
+        if (this.regionRequest == null) {
+            this.regionRequest = Utils.getViewerRegion(viewer, renderedServer);
+        }
 
         this.outputType = builder.outputType;
         this.setName = builder.setName;
@@ -145,17 +145,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
     @Override
     protected List<PathObject> call() throws Exception {
         try {
-            List<PathObject> detected = detectObjects();
-            if (!detected.isEmpty()) {
-                PathObjectHierarchy hierarchy = imageData.getHierarchy();
-                if (clearCurrentObjects)
-                    hierarchy.clearAll();
-                hierarchy.addObjects(detected);
-                hierarchy.getSelectionModel().clearSelection();
-            } else {
-                logger.warn("No objects detected");
-            }
-            return detected;
+            return detectObjects();
         } catch (InterruptedException e) {
             logger.warn("Interrupted while detecting objects", e);
             return Collections.emptyList();
@@ -167,8 +157,6 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
 
         SAMAutoMaskParameters.Builder parametersBuilder = SAMAutoMaskParameters.builder(model);
 
-        // For SAM auto mask, use the current viewer region
-        RegionRequest regionRequest = this.viewerRegion;
         BufferedImage img = renderedServer.readRegion(regionRequest);
 
         final SAMAutoMaskParameters parameters = parametersBuilder
@@ -192,7 +180,9 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         if (isCancelled())
             return Collections.emptyList();
 
-        HttpResponse<String> response = sendRequest(serverURL, parameters);
+        final String endpointURL = String.format("%sautomask/", serverURL);
+        HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
+                GsonTools.getInstance().toJson(parameters));
 
         if (isCancelled())
             return Collections.emptyList();
@@ -203,21 +193,6 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
-    }
-
-    private static HttpResponse<String> sendRequest(String serverURL, SAMAutoMaskParameters parameters)
-            throws IOException, InterruptedException {
-        final Gson gson = GsonTools.getInstance();
-        final String body = gson.toJson(parameters);
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%sautomask/", serverURL)))
-                .header("accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpClient client = HttpClient.newHttpClient();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest,
@@ -259,8 +234,10 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         private QuPathViewer viewer;
 
         private ImageServer<BufferedImage> server;
+        private RegionRequest regionRequest;
 
         private String serverURL;
+        private boolean verifySSL;
         private SAMType model = SAMType.VIT_L;
         private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
@@ -292,6 +269,17 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify if veryfy SSL.
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 
@@ -329,6 +317,17 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
          */
         public Builder server(final ImageServer<BufferedImage> server) {
             this.server = server;
+            return this;
+        }
+
+        /**
+         * Specify the region request (required).
+         * 
+         * @param regionRequest
+         * @return this builder
+         */
+        public Builder regionRequest(final RegionRequest regionRequest) {
+            this.regionRequest = regionRequest;
             return this;
         }
 

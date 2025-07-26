@@ -1,17 +1,18 @@
 package org.elephant.sam.tasks;
 
-import com.google.gson.Gson;
-import javafx.concurrent.Task;
-
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
+import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.entities.SAMPromptMode;
 import org.elephant.sam.parameters.SAM2VideoPromptObject;
 import org.elephant.sam.parameters.SAM2VideoPromptParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.lib.awt.common.AwtTools;
+
+import javafx.concurrent.Task;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
@@ -19,16 +20,12 @@ import qupath.lib.io.GsonTools;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
-import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
 
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +56,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
      * The field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private final List<RegionRequest> viewerRegions = new ArrayList<>();
+    private final List<RegionRequest> regionRequests = new ArrayList<>();
 
     private final Map<Integer, List<SAM2VideoPromptObject>> objs;
 
@@ -69,6 +66,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     private final SAMType model;
 
     private final SAMPromptMode promptMode;
@@ -77,13 +76,16 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
     private final int planePosition;
 
-    private final int fromIndex;
+    private final int indexOffset;
 
     private final Map<Integer, PathClass> indexToPathClass;
 
     private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
+
+        this.verifySSL = builder.verifySSL;
+        Objects.requireNonNull(verifySSL, "Verify SSL must not be null!");
 
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
@@ -110,33 +112,12 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             }
         }
 
-        // Find the region and downsample currently used within the viewer
-        if (promptMode == SAMPromptMode.XYZ) {
-            for (int z = builder.fromIndex; z <= builder.toIndex; z++) {
-                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z,
-                        viewer.getTPosition());
-                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
-                        viewer.getDownsampleFactor(),
-                        region);
-                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
-                viewerRegions.add(viewerRegion);
-            }
-            planePosition = viewer.getTPosition();
-        } else if (promptMode == SAMPromptMode.XYT) {
-            for (int t = builder.fromIndex; t <= builder.toIndex; t++) {
-                ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), viewer.getZPosition(),
-                        t);
-                RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
-                        viewer.getDownsampleFactor(),
-                        region);
-                viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
-                viewerRegions.add(viewerRegion);
-            }
-            planePosition = viewer.getZPosition();
-        } else {
-            throw new IllegalArgumentException("Unsupported prompt mode: " + promptMode);
-        }
-        this.fromIndex = builder.fromIndex;
+        this.regionRequests.clear();
+        this.regionRequests.addAll(builder.regionRequests);
+
+        this.planePosition = builder.planePosition;
+
+        this.indexOffset = builder.indexOffset;
         this.objs = builder.objs;
 
         this.setName = builder.setName;
@@ -146,28 +127,24 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     }
 
     private boolean uploadImages(String dirname) throws IOException, InterruptedException {
-        int paddingWidth = String.valueOf(viewerRegions.size()).length();
+        int paddingWidth = String.valueOf(regionRequests.size()).length();
         String filenameFormat = String.format("%%0%dd.jpg", paddingWidth);
         AtomicBoolean cancelled = new AtomicBoolean(false);
         AtomicInteger progress = new AtomicInteger(0);
-        final int total = viewerRegions.size();
+        final int total = regionRequests.size();
         IntStream.range(0, total).parallel().forEach(i -> {
             if (cancelled.get())
                 return;
             final String boundary = "----------------" + System.currentTimeMillis();
             try {
-                final BufferedImage img = renderedServer.readRegion(viewerRegions.get(i));
-                final byte[] multipartBody = Utils.createImageUploadMultipartBody(boundary, dirname,
-                        String.format(filenameFormat, i), img);
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                        .version(HttpClient.Version.HTTP_1_1)
-                        .uri(URI.create(String.format("%supload/", serverURL)))
-                        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                        .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
-                        .build();
-                System.out.println(request.toString());
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                final BufferedImage img = renderedServer.readRegion(regionRequests.get(i));
+                final String endpointURL = String.format("%supload/", serverURL);
+                MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create()
+                        .setBoundary(boundary)
+                        .addTextBody("dirname", dirname, ContentType.TEXT_PLAIN)
+                        .addBinaryBody("file", Utils.bufferedImageToJpegBytes(img), ContentType.create("image/jpeg"),
+                                String.format(filenameFormat, i));
+                HttpResponse<String> response = HttpUtils.postMultipartRequest(endpointURL, verifySSL, entityBuilder);
                 if (response.statusCode() != HttpURLConnection.HTTP_OK) {
                     logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
                     cancelled.set(true);
@@ -177,9 +154,6 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
                 }
             } catch (IOException e) {
                 logger.error("Failed to upload image", e);
-                cancelled.set(true);
-            } catch (InterruptedException e) {
-                logger.warn("Interrupted while uploading images", e);
                 cancelled.set(true);
             }
         });
@@ -219,33 +193,20 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         updateMessage("Processing images...");
-        HttpResponse<String> response = sendRequest(serverURL, prompt);
+        final String endpointURL = String.format("%svideo/", serverURL);
+        HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
+                GsonTools.getInstance().toJson(prompt));
 
         if (isCancelled())
             return Collections.emptyList();
 
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
             updateMessage("Processing done.");
-            return parseResponse(response, viewerRegions.get(0));
+            return parseResponse(response, regionRequests.get(0));
         } else {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
-    }
-
-    private static HttpResponse<String> sendRequest(String serverURL, SAM2VideoPromptParameters prompt)
-            throws IOException, InterruptedException {
-        final Gson gson = GsonTools.getInstance();
-        final String body = gson.toJson(prompt);
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%svideo/", serverURL)))
-                .header("accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        HttpClient client = HttpClient.newHttpClient();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest) {
@@ -258,9 +219,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         for (PathObject pathObject : samObjects) {
             ImagePlane plane = pathObject.getROI().getImagePlane();
             if (promptMode == SAMPromptMode.XYZ) {
-                plane = ImagePlane.getPlane(fromIndex + plane.getZ(), plane.getT());
+                plane = ImagePlane.getPlane(indexOffset + plane.getZ(), plane.getT());
             } else if (promptMode == SAMPromptMode.XYT) {
-                plane = ImagePlane.getPlane(plane.getZ(), fromIndex + plane.getT());
+                plane = ImagePlane.getPlane(plane.getZ(), indexOffset + plane.getT());
             }
             PathClass pathClass = indexToPathClass.get(Integer.valueOf(pathObject.getPathClass().getName()));
             pathObject = Utils.applyTransformAndClassification(pathObject, transform, pathClass, plane);
@@ -294,16 +255,18 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         private Map<Integer, List<SAM2VideoPromptObject>> objs;
 
         private ImageServer<BufferedImage> server;
+        private List<RegionRequest> regionRequests = new ArrayList<>();
 
         private String serverURL;
+        private boolean verifySSL;
         private SAMType model = SAMType.VIT_L;
         private SAMPromptMode promptMode = SAMPromptMode.XYZ;
         private boolean setRandomColor = true;
         private boolean setName = true;
         private String checkpointUrl;
-        private int fromIndex;
-        private int toIndex;
+        private int indexOffset;
         private Map<Integer, PathClass> indexToPathClass;
+        private int planePosition;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -317,6 +280,17 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify whether to verify SSL (required).
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 
@@ -370,6 +344,19 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         }
 
         /**
+         * Set the region requests to use.
+         * This is used to determine the region of interest for the objects created.
+         * 
+         * @param regionRequests
+         * @return this builder
+         */
+        public Builder regionRequests(final List<RegionRequest> regionRequests) {
+            this.regionRequests.clear();
+            this.regionRequests.addAll(regionRequests);
+            return this;
+        }
+
+        /**
          * Assign a random color to each unclassified object created.
          * Classified objects are not assigned a color, since their coloring comes from
          * the classification.
@@ -408,22 +395,11 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         /**
          * Specify the index to start from.
          * 
-         * @param fromIndex
+         * @param indexOffset
          * @return this builder
          */
-        public Builder fromIndex(final int fromIndex) {
-            this.fromIndex = fromIndex;
-            return this;
-        }
-
-        /**
-         * Specify the index to end at.
-         * 
-         * @param toIndex
-         * @return this builder
-         */
-        public Builder toIndex(final int toIndex) {
-            this.toIndex = toIndex;
+        public Builder indexOffset(final int indexOffset) {
+            this.indexOffset = indexOffset;
             return this;
         }
 
@@ -435,6 +411,18 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder indexToPathClass(final Map<Integer, PathClass> indexToPathClass) {
             this.indexToPathClass = indexToPathClass;
+            return this;
+        }
+
+        /**
+         * Specify the plane position.
+         * This is used to determine the plane for the objects created.
+         * 
+         * @param planePosition
+         * @return this builder
+         */
+        public Builder planePosition(final int planePosition) {
+            this.planePosition = planePosition;
             return this;
         }
 

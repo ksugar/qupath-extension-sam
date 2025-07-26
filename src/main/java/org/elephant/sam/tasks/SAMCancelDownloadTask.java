@@ -2,12 +2,10 @@ package org.elephant.sam.tasks;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Objects;
 
+import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +20,8 @@ public class SAMCancelDownloadTask extends Task<Boolean> {
 
     private final String serverURL;
 
+    private final boolean verifySSL;
+
     /**
      * Create a new task.
      * 
@@ -30,17 +30,14 @@ public class SAMCancelDownloadTask extends Task<Boolean> {
      */
     public SAMCancelDownloadTask(Builder builder) {
         this.serverURL = builder.serverURL;
+        this.verifySSL = builder.verifySSL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
     }
 
     @Override
     protected Boolean call() throws InterruptedException, IOException {
-        final HttpClient client = HttpClient.newHttpClient();
-        final HttpRequest request = HttpRequest.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .uri(URI.create(String.format("%sweights/cancel/", serverURL)))
-                .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        final String endpointURL = String.format("%sweights/cancel/", serverURL);
+        HttpResponse<String> response = HttpUtils.getRequest(endpointURL, verifySSL);
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
             updateMessage(response.body());
         } else {
@@ -65,9 +62,21 @@ public class SAMCancelDownloadTask extends Task<Boolean> {
     public static class Builder {
 
         private String serverURL;
+        private boolean verifySSL;
 
         public Builder serverURL(String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify whether to verify SSL (required).
+         * 
+         * @param verifySSL
+         * @return this builder
+         */
+        public Builder verifySSL(final boolean verifySSL) {
+            this.verifySSL = verifySSL;
             return this;
         }
 

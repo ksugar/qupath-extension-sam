@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import org.elephant.sam.entities.SAMOutput;
-import org.elephant.sam.http.MultipartBodyBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +22,7 @@ import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.ImageRegion;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.PointsROI;
 import qupath.lib.roi.RectangleROI;
 import qupath.lib.roi.interfaces.ROI;
 
@@ -124,6 +124,7 @@ public class Utils {
      *            the maximum Y coordinate in the downsampled region (typically the
      *            requested image height)
      * @return
+     *         a list of coordinates, transformed to the downsampled region
      */
     public static List<Coordinate> getCoordinates(ROI roi, RegionRequest region, int maxX, int maxY) {
         List<Coordinate> coords = new ArrayList<>();
@@ -227,18 +228,18 @@ public class Utils {
     }
 
     /**
-     * Get a region request for the viewer, intersected with the rendered server.
+     * Get a region request for the viewer, intersected with the image server.
      * 
      * @param viewer
-     * @param renderedServer
+     * @param imageServer
      * @return the region request
      */
-    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> renderedServer) {
-        return getViewerRegion(viewer, renderedServer, viewer.getZPosition(), viewer.getTPosition());
+    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> imageServer) {
+        return getViewerRegion(viewer, imageServer, viewer.getZPosition(), viewer.getTPosition());
     }
 
     /**
-     * Get a region request for the viewer, intersected with the rendered server.
+     * Get a region request for the viewer, intersected with the image server.
      * 
      * @param viewer
      * @param renderedServer
@@ -246,20 +247,13 @@ public class Utils {
      * @param t
      * @return the region request
      */
-    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> renderedServer, int z,
+    public static RegionRequest getViewerRegion(QuPathViewer viewer, ImageServer<BufferedImage> imageServer, int z,
             int t) {
-        if (renderedServer == null) {
-            try {
-                renderedServer = Utils.createRenderedServer(viewer);
-            } catch (IOException e) {
-                logger.error("Failed to create rendered server", e);
-            }
-        }
         // Find the region and downsample currently used within the viewer
         ImageRegion region = AwtTools.getImageRegion(viewer.getDisplayedRegionShape(), z, t);
-        RegionRequest viewerRegion = RegionRequest.createInstance(renderedServer.getPath(),
+        RegionRequest viewerRegion = RegionRequest.createInstance(imageServer.getPath(),
                 viewer.getDownsampleFactor(), region);
-        viewerRegion = viewerRegion.intersect2D(0, 0, renderedServer.getWidth(), renderedServer.getHeight());
+        viewerRegion = viewerRegion.intersect2D(0, 0, imageServer.getWidth(), imageServer.getHeight());
         return viewerRegion;
     }
 
@@ -398,14 +392,123 @@ public class Utils {
         }
     }
 
-    public static byte[] createImageUploadMultipartBody(String boundary, String dirname, String filename,
-            BufferedImage image)
-            throws IOException {
-        byte[] imageBytes = bufferedImageToJpegBytes(image);
-        final MultipartBodyBuilder builder = new MultipartBodyBuilder(boundary);
-        builder.addFormField("dirname", dirname);
-        builder.addFilePart("file", filename, "image/jpeg", imageBytes);
-        return builder.build();
+    public static String getGroovyScriptForCreateRegionRequest(RegionRequest regionRequest) {
+        return getGroovyScriptForCreateRegionRequest(regionRequest, null);
+    }
+
+    public static String getGroovyScriptForCreateRegionRequest(RegionRequest regionRequest, String variableDim) {
+        if (variableDim == null || variableDim.isEmpty()) {
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d)",
+                    regionRequest.getDownsample(),
+                    regionRequest.getX(),
+                    regionRequest.getY(),
+                    regionRequest.getWidth(),
+                    regionRequest.getHeight(),
+                    regionRequest.getZ(),
+                    regionRequest.getT());
+        } else if (variableDim.equals("Z")) {
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, it, %d)",
+                    regionRequest.getDownsample(),
+                    regionRequest.getX(),
+                    regionRequest.getY(),
+                    regionRequest.getWidth(),
+                    regionRequest.getHeight(),
+                    regionRequest.getT());
+        } else if (variableDim.equals("T")) {
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, it)",
+                    regionRequest.getDownsample(),
+                    regionRequest.getX(),
+                    regionRequest.getY(),
+                    regionRequest.getWidth(),
+                    regionRequest.getHeight(),
+                    regionRequest.getZ());
+        }
+        return String.format(
+                "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d)",
+                regionRequest.getDownsample(),
+                regionRequest.getX(),
+                regionRequest.getY(),
+                regionRequest.getWidth(),
+                regionRequest.getHeight(),
+                regionRequest.getZ(),
+                regionRequest.getT());
+    }
+
+    public static String getGroovyScriptForListOfPoint2(List<Point2> points) {
+        if (points == null || points.isEmpty()) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder("[");
+
+        int i = 0;
+        for (Point2 point : points) {
+            if (i++ > 0) {
+                sb.append(",");
+            }
+            sb.append("\n");
+            sb.append("                ");
+            sb.append(String.format("new qupath.lib.geom.Point2(%f, %f)", point.getX(), point.getY()));
+        }
+        sb.append("\n");
+        sb.append("            ");
+        sb.append("]");
+        return sb.toString();
+    }
+
+    public static String getGroovyScriptForCreatePointsROI(PointsROI pointsROI) {
+        if (pointsROI == null || pointsROI.getAllPoints().isEmpty()) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("ROIs.createPointsROI(\n");
+        sb.append("            ");
+        sb.append(getGroovyScriptForListOfPoint2(pointsROI.getAllPoints()));
+        sb.append(",\n");
+        sb.append("            ");
+        sb.append(getGroovyScriptForImagePlane(pointsROI.getImagePlane()));
+        sb.append("\n");
+        sb.append("        )");
+        return sb.toString();
+    }
+
+    public static String getGroovyScriptForCreateRectangleROI(RectangleROI rectangleROI) {
+        if (rectangleROI == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("ROIs.createRectangleROI(\n");
+        sb.append("            ");
+        sb.append(String.format("%f, %f, %f, %f,\n",
+                rectangleROI.getBoundsX(),
+                rectangleROI.getBoundsY(),
+                rectangleROI.getBoundsWidth(),
+                rectangleROI.getBoundsHeight()));
+        sb.append("            ");
+        sb.append(getGroovyScriptForImagePlane(rectangleROI.getImagePlane()));
+        sb.append("\n");
+        sb.append("        ");
+        sb.append(")");
+        return sb.toString();
+
+    }
+
+    public static String getGroovyScriptForPathClass(PathClass pathClass) {
+        if (pathClass == null) {
+            return "null";
+        }
+        StringBuilder sb = new StringBuilder("PathClass.getInstance(");
+        sb.append("\"" + pathClass.getName() + "\"");
+        return sb.toString();
+    }
+
+    public static String getGroovyScriptForImagePlane(ImagePlane imagePlane) {
+        if (imagePlane == null) {
+            return "null";
+        }
+        return String.format("new ImagePlane(%d, %d, %d)", imagePlane.getC(), imagePlane.getZ(), imagePlane.getT());
     }
 
 }

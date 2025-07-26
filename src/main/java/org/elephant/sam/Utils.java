@@ -398,9 +398,8 @@ public class Utils {
 
     public static String getGroovyScriptForCreateRegionRequest(RegionRequest regionRequest, String variableDim) {
         if (variableDim == null || variableDim.isEmpty()) {
-            return String.format("""
-                    RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d),
-                    """,
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d)",
                     regionRequest.getDownsample(),
                     regionRequest.getX(),
                     regionRequest.getY(),
@@ -409,9 +408,8 @@ public class Utils {
                     regionRequest.getZ(),
                     regionRequest.getT());
         } else if (variableDim.equals("Z")) {
-            return String.format("""
-                    RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, it, %d),
-                    """,
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, it, %d)",
                     regionRequest.getDownsample(),
                     regionRequest.getX(),
                     regionRequest.getY(),
@@ -419,9 +417,8 @@ public class Utils {
                     regionRequest.getHeight(),
                     regionRequest.getT());
         } else if (variableDim.equals("T")) {
-            return String.format("""
-                    RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, it),
-                    """,
+            return String.format(
+                    "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, it)",
                     regionRequest.getDownsample(),
                     regionRequest.getX(),
                     regionRequest.getY(),
@@ -429,9 +426,8 @@ public class Utils {
                     regionRequest.getHeight(),
                     regionRequest.getZ());
         }
-        return String.format("""
-                RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d),
-                """,
+        return String.format(
+                "RegionRequest.createInstance(getCurrentServer().getPath(), %f, %d, %d, %d, %d, %d, %d)",
                 regionRequest.getDownsample(),
                 regionRequest.getX(),
                 regionRequest.getY(),
@@ -447,10 +443,17 @@ public class Utils {
         }
         StringBuilder sb = new StringBuilder("[");
 
+        int i = 0;
         for (Point2 point : points) {
-            sb.append(String.format("\n. new Point2(%f, %f), ", point.getX(), point.getY()));
+            if (i++ > 0) {
+                sb.append(",");
+            }
+            sb.append("\n");
+            sb.append("                ");
+            sb.append(String.format("new qupath.lib.geom.Point2(%f, %f)", point.getX(), point.getY()));
         }
-        sb.setLength(sb.length() - 2); // Remove the last comma and space
+        sb.append("\n");
+        sb.append("            ");
         sb.append("]");
         return sb.toString();
     }
@@ -461,10 +464,13 @@ public class Utils {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("ROIs.createPointsROI(\n");
+        sb.append("            ");
         sb.append(getGroovyScriptForListOfPoint2(pointsROI.getAllPoints()));
         sb.append(",\n");
+        sb.append("            ");
         sb.append(getGroovyScriptForImagePlane(pointsROI.getImagePlane()));
-        sb.append(")");
+        sb.append("\n");
+        sb.append("        )");
         return sb.toString();
     }
 
@@ -474,12 +480,16 @@ public class Utils {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("ROIs.createRectangleROI(\n");
+        sb.append("            ");
         sb.append(String.format("%f, %f, %f, %f,\n",
                 rectangleROI.getBoundsX(),
                 rectangleROI.getBoundsY(),
                 rectangleROI.getBoundsWidth(),
                 rectangleROI.getBoundsHeight()));
+        sb.append("            ");
         sb.append(getGroovyScriptForImagePlane(rectangleROI.getImagePlane()));
+        sb.append("\n");
+        sb.append("        ");
         sb.append(")");
         return sb.toString();
 

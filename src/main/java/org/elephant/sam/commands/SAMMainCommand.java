@@ -1247,10 +1247,11 @@ public class SAMMainCommand implements Runnable {
                 sbForegroundObjects
                         .append("    PathObjects.createAnnotationObject(\n");
                 sbForegroundObjects
-                        .append("        " + Utils.getGroovyScriptForCreatePointsROI(pointsROI) + ",\n");
+                        .append("        " + Utils.getGroovyScriptForCreatePointsROI(pointsROI));
+                sbForegroundObjects.append(",\n");
                 sbForegroundObjects
-                        .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
-                sbForegroundObjects.append("),\n");
+                        .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()) + "\n");
+                sbForegroundObjects.append("    ),\n");
             } else if (pathObject.getROI() instanceof RectangleROI) {
                 RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
                 sbForegroundObjects
@@ -1259,7 +1260,10 @@ public class SAMMainCommand implements Runnable {
                         .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
                 sbForegroundObjects
                         .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
-                sbForegroundObjects.append("),\n");
+                sbForegroundObjects.append("\n");
+                sbForegroundObjects.append("    ");
+                sbForegroundObjects.append("),");
+                sbForegroundObjects.append("\n");
             }
         }
         sbForegroundObjects.append("]");
@@ -1269,12 +1273,20 @@ public class SAMMainCommand implements Runnable {
             sbBackgroundObjects.append("[]");
         } else {
             sbBackgroundObjects.append("[\n");
+            int i = 0;
             for (PathObject pathObject : backgroundObjects) {
                 if (pathObject.getROI() instanceof PointsROI) {
+                    if (i++ > 0)
+                        sbBackgroundObjects.append(",\n");
                     PointsROI pointsROI = (PointsROI) pathObject.getROI();
-                    sbBackgroundObjects.append(String.format("PathObjects.createAnnotationObject(%s, %s),\n",
-                            Utils.getGroovyScriptForCreatePointsROI(pointsROI),
-                            Utils.getGroovyScriptForPathClass(pathObject.getPathClass())));
+                    sbBackgroundObjects
+                            .append("    PathObjects.createAnnotationObject(\n");
+                    sbBackgroundObjects
+                            .append("        " + Utils.getGroovyScriptForCreatePointsROI(pointsROI));
+                    sbBackgroundObjects.append(",\n");
+                    sbBackgroundObjects
+                            .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()) + "\n");
+                    sbBackgroundObjects.append("    )");
                 }
             }
             sbBackgroundObjects.append("]");

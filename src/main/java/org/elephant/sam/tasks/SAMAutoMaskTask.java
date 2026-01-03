@@ -180,7 +180,7 @@ public class SAMAutoMaskTask extends Task<List<PathObject>> {
         if (isCancelled())
             return Collections.emptyList();
 
-        final String endpointURL = String.format("%sautomask/", serverURL);
+        final String endpointURL = String.format("%sautomask/", Utils.ensureTrailingSlash(serverURL));
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(parameters));
 

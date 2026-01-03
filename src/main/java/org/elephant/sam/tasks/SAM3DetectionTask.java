@@ -181,7 +181,7 @@ public class SAM3DetectionTask extends Task<List<PathObject>> {
         if (isCancelled())
             return Collections.emptyList();
 
-        final String endpointURL = String.format("%ssam3/", serverURL);
+        final String endpointURL = String.format("%ssam3/", Utils.ensureTrailingSlash(serverURL));
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(prompt));
 

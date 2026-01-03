@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 
 import javafx.concurrent.Task;
 
+import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMWeights;
 import org.elephant.sam.http.HttpUtils;
@@ -63,7 +64,8 @@ public class SAMFetchWeightsTask extends Task<List<SAMWeights>> {
         if (isCancelled())
             return Collections.emptyList();
 
-        final String endpointURL = String.format("%sweights/?type=%s", serverURL, samType.modelName());
+        final String endpointURL = String.format("%sweights/?type=%s", Utils.ensureTrailingSlash(serverURL),
+                samType.modelName());
         HttpResponse<String> response = HttpUtils.getRequest(endpointURL, verifySSL);
 
         if (isCancelled())

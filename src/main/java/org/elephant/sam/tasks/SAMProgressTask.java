@@ -5,6 +5,7 @@ import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.util.Objects;
 
+import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMProgress;
 import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
@@ -37,7 +38,7 @@ public class SAMProgressTask extends Task<Boolean> {
 
     @Override
     protected Boolean call() throws InterruptedException, IOException {
-        final String endpointURL = String.format("%sprogress/", serverURL);
+        final String endpointURL = String.format("%sprogress/", Utils.ensureTrailingSlash(serverURL));
         while (!isCancelled()) {
             HttpResponse<String> response = HttpUtils.getRequest(endpointURL, verifySSL);
             if (response.statusCode() == HttpURLConnection.HTTP_OK) {

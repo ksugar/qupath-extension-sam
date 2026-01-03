@@ -5,6 +5,7 @@ import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.util.Objects;
 
+import org.elephant.sam.Utils;
 import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +37,7 @@ public class SAMCancelDownloadTask extends Task<Boolean> {
 
     @Override
     protected Boolean call() throws InterruptedException, IOException {
-        final String endpointURL = String.format("%sweights/cancel/", serverURL);
+        final String endpointURL = String.format("%sweights/cancel/", Utils.ensureTrailingSlash(serverURL));
         HttpResponse<String> response = HttpUtils.getRequest(endpointURL, verifySSL);
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
             updateMessage(response.body());

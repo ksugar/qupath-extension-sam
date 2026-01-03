@@ -511,4 +511,11 @@ public class Utils {
         return String.format("new ImagePlane(%d, %d, %d)", imagePlane.getC(), imagePlane.getZ(), imagePlane.getT());
     }
 
+    public static String ensureTrailingSlash(String path) {
+        if (path == null || path.endsWith("/")) {
+            return path;
+        }
+        return path + "/";
+    }
+
 }

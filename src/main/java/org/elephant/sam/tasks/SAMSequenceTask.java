@@ -138,7 +138,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             final String boundary = "----------------" + System.currentTimeMillis();
             try {
                 final BufferedImage img = renderedServer.readRegion(regionRequests.get(i));
-                final String endpointURL = String.format("%supload/", serverURL);
+                final String endpointURL = String.format("%supload/", Utils.ensureTrailingSlash(serverURL));
                 MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create()
                         .setBoundary(boundary)
                         .addTextBody("dirname", dirname, ContentType.TEXT_PLAIN)
@@ -193,7 +193,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         updateMessage("Processing images...");
-        final String endpointURL = String.format("%svideo/", serverURL);
+        final String endpointURL = String.format("%svideo/", Utils.ensureTrailingSlash(serverURL));
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(prompt));
 

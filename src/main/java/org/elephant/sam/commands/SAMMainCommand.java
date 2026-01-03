@@ -20,6 +20,7 @@ import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMWeights;
 import org.elephant.sam.parameters.SAM2VideoPromptObject;
 import org.elephant.sam.parameters.SAM2VideoPromptObject.Builder;
+import org.elephant.sam.tasks.SAM3DetectionTask;
 import org.elephant.sam.tasks.SAMAutoMaskTask;
 import org.elephant.sam.tasks.SAMCancelDownloadTask;
 import org.elephant.sam.tasks.SAMDetectionTask;
@@ -349,6 +350,28 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * Whether to reset prompts before detection.
+     */
+    private static final boolean DEFAULT_RESET_PROMPTS = false;
+    private final BooleanProperty resetPromptsProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.resetPrompts", DEFAULT_RESET_PROMPTS);
+
+    public BooleanProperty getResetPromptsProperty() {
+        return resetPromptsProperty;
+    }
+
+    /**
+     * Confidence thresh parameter.
+     */
+    private static final double DEFAULT_CONFIDENCE_THRESH = 0.5;
+    private final DoubleProperty confidenceThreshProperty = PathPrefs.createPersistentPreference(
+            "ext.SAM.autoMask.confidenceThresh", DEFAULT_CONFIDENCE_THRESH);
+
+    public DoubleProperty getConfidenceThreshProperty() {
+        return confidenceThreshProperty;
+    }
+
+    /**
      * Whether live mode is turned on, to make detections as annotations are added
      */
     private final BooleanProperty liveModeProperty = new SimpleBooleanProperty(false);
@@ -382,6 +405,15 @@ public class SAMMainCommand implements Runnable {
 
     public IntegerProperty getToIndexProperty() {
         return toIndexProperty;
+    }
+
+    /**
+     * Text prompt for SAM3
+     */
+    private final StringProperty textPromptProperty = new SimpleStringProperty("");
+
+    public StringProperty getTextPromptProperty() {
+        return textPromptProperty;
     }
 
     /**
@@ -587,12 +619,25 @@ public class SAMMainCommand implements Runnable {
             return;
         }
         Collection<PathObject> selectedObjects = imageData.getHierarchy().getSelectionModel().getSelectedObjects();
-        List<PathObject> foregroundObjects = getForegroundObjects(selectedObjects);
-        if (!foregroundObjects.isEmpty()) {
-            List<PathObject> backgroundObjects = getBackgroundObjects(selectedObjects);
-            submitDetectionTask(foregroundObjects, backgroundObjects);
+
+        if (getSamTypeProperty().get().isSAM3Compatible()) {
+            String textPrompt = getTextPromptProperty().get();
+            List<PathObject> foregroundObjects = getSAM3ForegroundObjects(selectedObjects);
+            List<PathObject> backgroundObjects = getSAM3BackgroundObjects(selectedObjects);
+            if (textPrompt == null || textPrompt.isBlank() && foregroundObjects.isEmpty()) {
+                updateInfoTextWithError("No text prompt or foreground rectangle rois to use");
+                return;
+            } else {
+                submitSAM3DetectionTask(textPrompt, foregroundObjects, backgroundObjects);
+            }
         } else {
-            updateInfoText("No foreground objects to use");
+            List<PathObject> foregroundObjects = getForegroundObjects(selectedObjects);
+            List<PathObject> backgroundObjects = getBackgroundObjects(selectedObjects);
+            if (!foregroundObjects.isEmpty()) {
+                submitDetectionTask(foregroundObjects, backgroundObjects);
+            } else {
+                updateInfoText("No foreground objects to use");
+            }
         }
     }
 
@@ -1107,7 +1152,7 @@ public class SAMMainCommand implements Runnable {
                 .build();
         task.setOnSucceeded(event -> {
             List<SAMWeights> weights = task.getValue();
-            if (weights != null && !weights.isEmpty()) {
+            if (weights != null) {
                 Platform.runLater(() -> {
                     availableWeightsList.clear();
                     availableWeightsList.addAll(weights);
@@ -1340,6 +1385,173 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * Submit a task to run SAM3 detection.
+     * 
+     * @param textPrompt
+     * @param positiveBboxes
+     * @param negativeBboxes
+     */
+    private void submitSAM3DetectionTask(String textPrompt, List<PathObject> positiveBboxes,
+            List<PathObject> negativeBboxes) {
+        if (textPrompt == null || textPrompt.isEmpty() && (positiveBboxes == null || positiveBboxes.isEmpty())) {
+            logger.warn("Cannot submit task - text prompt and positive bboxes must not both be empty!");
+            return;
+        }
+        logger.info("Submitting task for {} positive and {} negative bboxes",
+                positiveBboxes.size(), negativeBboxes.size());
+        ImageServer<BufferedImage> renderedServer;
+        try {
+            renderedServer = Utils.createRenderedServer(qupath.getViewer());
+        } catch (IOException e) {
+            logger.error("Failed to create rendered server", e);
+            updateInfoTextWithError("Failed to create rendered server: " + e.getMessage());
+            return;
+        }
+        RegionRequest regionRequest = Utils.getViewerRegion(qupath.getViewer(), renderedServer);
+        SAM3DetectionTask task = SAM3DetectionTask.builder(qupath.getViewer())
+                .server(renderedServer)
+                .regionRequest(regionRequest)
+                .serverURL(serverURLProperty.get())
+                .verifySSL(verifySSLProperty.get())
+                .model(samTypeProperty.get())
+                .outputType(outputTypeProperty.get())
+                .setName(setNamesProperty.get())
+                .checkpointUrl(selectedWeightsProperty.get().getUrl())
+                .setRandomColor(useRandomColorsProperty.get())
+                .textPrompt(textPrompt)
+                .addPositiveBboxes(positiveBboxes)
+                .addNegativeBboxes(negativeBboxes)
+                .resetPrompts(resetPromptsProperty.get())
+                .confidenceThresh(confidenceThreshProperty.get())
+                .build();
+        task.setOnSucceeded(event -> {
+            List<PathObject> detected = task.getValue();
+            if (detected != null) {
+                if (!detected.isEmpty()) {
+                    Platform.runLater(() -> {
+                        PathObjectHierarchy hierarchy = qupath.getViewer().getImageData().getHierarchy();
+                        if (!keepPromptsProperty.get()) {
+                            // Remove prompt objects in one step
+                            hierarchy.getSelectionModel().clearSelection();
+                            hierarchy.removeObjects(positiveBboxes, true);
+                            hierarchy.removeObjects(negativeBboxes, true);
+                        }
+                        hierarchy.addObjects(detected);
+                        hierarchy.getSelectionModel().setSelectedObjects(detected, detected.get(0));
+                    });
+                } else {
+                    logger.warn("No objects detected");
+                }
+            }
+        });
+        submitTask(task);
+
+        StringBuilder sbPositiveObjects = new StringBuilder();
+        if (positiveBboxes.isEmpty()) {
+            sbPositiveObjects.append("[]");
+        } else {
+            sbPositiveObjects.append("[\n");
+            int i = 0;
+            for (PathObject pathObject : positiveBboxes) {
+                if (pathObject.getROI() instanceof RectangleROI) {
+                    if (i++ > 0)
+                        sbPositiveObjects.append(",\n");
+                    RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
+                    sbPositiveObjects
+                            .append("    PathObjects.createAnnotationObject(\n");
+                    sbPositiveObjects
+                            .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
+                    sbPositiveObjects
+                            .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
+                    sbPositiveObjects.append("\n");
+                    sbPositiveObjects.append("    ");
+                    sbPositiveObjects.append("),");
+                    sbPositiveObjects.append("\n");
+                } else {
+                    logger.warn("Skipping positive bbox object with unsupported ROI type: {}",
+                            pathObject.getROI().getClass());
+                }
+            }
+            sbPositiveObjects.append("]");
+        }
+
+        StringBuilder sbNegativeObjects = new StringBuilder();
+        if (negativeBboxes.isEmpty()) {
+            sbNegativeObjects.append("[]");
+        } else {
+            sbNegativeObjects.append("[\n");
+            int i = 0;
+            for (PathObject pathObject : negativeBboxes) {
+                if (pathObject.getROI() instanceof RectangleROI) {
+                    if (i++ > 0)
+                        sbNegativeObjects.append(",\n");
+                    RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
+                    sbNegativeObjects
+                            .append("    PathObjects.createAnnotationObject(\n");
+                    sbNegativeObjects
+                            .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
+                    sbNegativeObjects
+                            .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
+                    sbNegativeObjects.append("\n");
+                    sbNegativeObjects.append("    ");
+                    sbNegativeObjects.append("),");
+                    sbNegativeObjects.append("\n");
+                } else {
+                    logger.warn("Skipping positive bbox object with unsupported ROI type: {}",
+                            pathObject.getROI().getClass());
+                }
+            }
+            sbNegativeObjects.append("]");
+        }
+        final String cmd = String.format("""
+                var positiveObjects = %s
+                var negativeObjects = %s
+                var task = org.elephant.sam.tasks.SAM3DetectionTask.builder(getCurrentViewer())
+                    .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
+                    .regionRequest(%s)
+                    .serverURL("%s")
+                    .verifySSL(%b)
+                    .model(%s)
+                    .outputType(%s)
+                    .setName(%b)
+                    .setRandomColor(%b)
+                    .checkpointUrl("%s")
+                    .addPositiveBboxes(positiveBboxes)
+                    .addNegativeBboxes(negativeBboxes)
+                    .build()
+                task.setOnSucceeded(event -> {
+                    List<PathObject> detected = task.getValue()
+                    if (detected != null) {
+                        if (!detected.isEmpty()) {
+                            Platform.runLater(() -> {
+                                PathObjectHierarchy hierarchy = getCurrentHierarchy()
+                                hierarchy.addObjects(detected)
+                                hierarchy.getSelectionModel().clearSelection()
+                                hierarchy.fireHierarchyChangedEvent(this)
+                            });
+                        } else {
+                            print("No objects detected")
+                        }
+                    }
+                });
+                Platform.runLater(task)
+                """,
+                sbPositiveObjects.toString(),
+                sbNegativeObjects.toString(),
+                Utils.getGroovyScriptForCreateRegionRequest(regionRequest),
+                serverURLProperty.get(),
+                verifySSLProperty.get(),
+                samTypeProperty.get().getFullyQualifiedName(),
+                outputTypeProperty.get().getFullyQualifiedName(),
+                setNamesProperty.get(),
+                useRandomColorsProperty.get(),
+                selectedWeightsProperty.get().getUrl())
+                .strip();
+        imageDataProperty.get().getHistoryWorkflow().addStep(
+                new DefaultScriptableWorkflowStep("SAMDetection", cmd));
+    }
+
+    /**
      * Handle a change in task state.
      * 
      * @param task
@@ -1410,7 +1622,7 @@ public class SAMMainCommand implements Runnable {
             // If we are forcing background points, then we need to make sure that any new
             // points are an 'ignored' class
             for (PathObject pathObject : event.getChangedObjects()) {
-                if (pathObject.getROI() instanceof PointsROI) {
+                if (pathObject.getROI() instanceof PointsROI || pathObject.getROI() instanceof RectangleROI) {
                     PathClass currentClass = pathObject.getPathClass();
                     if (currentClass == null || !PathClassTools.isIgnoredClass(currentClass))
                         pathObject.setPathClass(PathClass.StandardPathClasses.IGNORE);
@@ -1440,6 +1652,19 @@ public class SAMMainCommand implements Runnable {
     }
 
     /**
+     * Get the foreground objects from a collection of path objects.
+     * 
+     * @param pathObjects
+     * @return the list of foreground objects
+     */
+    private List<PathObject> getSAM3ForegroundObjects(Collection<? extends PathObject> pathObjects) {
+        return pathObjects
+                .stream()
+                .filter(this::isSAM3ForegroundObject)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get the background objects from a collection of path objects.
      * 
      * @param pathObjects
@@ -1449,6 +1674,19 @@ public class SAMMainCommand implements Runnable {
         return pathObjects
                 .stream()
                 .filter(this::isBackgroundObject)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the background objects from a collection of path objects.
+     * 
+     * @param pathObjects
+     * @return the list of background objects
+     */
+    private List<PathObject> getSAM3BackgroundObjects(Collection<? extends PathObject> pathObjects) {
+        return pathObjects
+                .stream()
+                .filter(this::isSAM3BackgroundObject)
                 .collect(Collectors.toList());
     }
 
@@ -1482,11 +1720,22 @@ public class SAMMainCommand implements Runnable {
      * @return
      */
     private boolean isForegroundObject(PathObject pathObject) {
-        if (Utils.isPotentialPromptObject(pathObject) && !isBackgroundObject(pathObject)) {
-            return Utils.hasRectangleROI(pathObject) || Utils.hasPointsROI(pathObject)
-                    || hasPermittedLineROI(pathObject);
-        }
-        return false;
+        return Utils.isPotentialPromptObject(pathObject)
+                && !isBackgroundObject(pathObject)
+                && (Utils.hasRectangleROI(pathObject) || Utils.hasPointsROI(pathObject)
+                        || hasPermittedLineROI(pathObject));
+    }
+
+    /**
+     * Test if an object could act as a foreground prompt for SAM3 detection.
+     * 
+     * @param pathObject
+     * @return
+     */
+    private boolean isSAM3ForegroundObject(PathObject pathObject) {
+        return Utils.isPotentialPromptObject(pathObject)
+                && !isSAM3BackgroundObject(pathObject)
+                && Utils.hasRectangleROI(pathObject);
     }
 
     /**
@@ -1498,6 +1747,19 @@ public class SAMMainCommand implements Runnable {
     private boolean isBackgroundObject(PathObject pathObject) {
         return Utils.isPotentialPromptObject(pathObject)
                 && (Utils.hasPointsROI(pathObject) || hasPermittedLineROI(pathObject))
+                && pathObject.getPathClass() != null &&
+                PathClassTools.isIgnoredClass(pathObject.getPathClass());
+    }
+
+    /**
+     * Test if an object could act as a background prompt for detection.
+     * 
+     * @param pathObject
+     * @return
+     */
+    private boolean isSAM3BackgroundObject(PathObject pathObject) {
+        return Utils.isPotentialPromptObject(pathObject)
+                && Utils.hasRectangleROI(pathObject)
                 && pathObject.getPathClass() != null &&
                 PathClassTools.isIgnoredClass(pathObject.getPathClass());
     }

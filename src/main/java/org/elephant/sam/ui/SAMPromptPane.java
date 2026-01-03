@@ -16,6 +16,7 @@ import javafx.beans.binding.StringBinding;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
@@ -31,6 +32,7 @@ import javafx.scene.control.RadioButton;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
@@ -44,6 +46,7 @@ import qupath.lib.gui.actions.ActionTools;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.gui.viewer.QuPathViewerListener;
+import qupath.lib.gui.viewer.tools.PathTool;
 import qupath.lib.gui.viewer.tools.PathTools;
 import qupath.lib.images.ImageData;
 import qupath.lib.objects.PathObject;
@@ -81,6 +84,12 @@ public class SAMPromptPane extends GridPane {
      */
     private final BooleanBinding isVideoCompatibleBinding = Bindings.createBooleanBinding(
             () -> samTypeProperty.get() != null && samTypeProperty.get().isVideoCompatible(), samTypeProperty);
+
+    /**
+     * Flag to indicate that the SAM type is compatible with SAM3 prediction.
+     */
+    private final BooleanBinding isSAM3CompatibleBinding = Bindings.createBooleanBinding(
+            () -> samTypeProperty.get() != null && samTypeProperty.get().isSAM3Compatible(), samTypeProperty);
 
     /**
      * Flag to indicate that the 2D (XY) is available.
@@ -200,6 +209,10 @@ public class SAMPromptPane extends GridPane {
 
         addSeparator(row++);
 
+        addTextPromptPane(row++);
+
+        addSeparator(row++);
+
         addButtons(row++);
 
         setHgap(SAMUIUtils.H_GAP);
@@ -216,6 +229,43 @@ public class SAMPromptPane extends GridPane {
         viewerUpdated(command.getQuPath().getViewer());
     }
 
+    private void addTextPromptPane(int i) {
+        // Add section label for sam3 on the top line
+        Label sam3Label = new Label("SAM3-only parameters");
+        sam3Label.setStyle("-fx-font-weight: bold;");
+
+        Label label = new Label("Text prompt");
+        label.setTooltip(new Tooltip("Provide a text prompt to guide segmentation (SAM3 only)."));
+
+        TextArea textArea = new TextArea();
+        textArea.setWrapText(true);
+        textArea.setPromptText("Enter text prompt here...");
+        textArea.textProperty().bindBidirectional(command.getTextPromptProperty());
+        textArea.setPrefRowCount(3);
+        textArea.setMaxWidth(Double.MAX_VALUE);
+        GridPane.setFillWidth(textArea, true);
+        textArea.disableProperty().bind(isSAM3CompatibleBinding.not());
+
+        GridPane textPane = new GridPane();
+        textPane.setHgap(SAMUIUtils.H_GAP);
+        textPane.add(label, 0, 0);
+        textPane.add(textArea, 1, 0, GridPane.REMAINING, 1);
+
+        CheckBox cbResetPrompts = createCheckbox("Reset prompts",
+                command.getResetPromptsProperty(),
+                "Clear all existing prompts when running SAM3 detection.");
+        cbResetPrompts.disableProperty().bind(isSAM3CompatibleBinding.not());
+
+        Spinner<Double> confidenceThreshSpinner = SAMUIUtils.createDoubleSpinner(
+                0.0, 1.0, command.getConfidenceThreshProperty(), 0.01,
+                "A filtering threshold in [0,1], using the model's predicted mask quality.");
+        GridPane confidenceThreshPane = SAMUIUtils.createColumnPane(
+                new Label("Pred IoU thresh"), confidenceThreshSpinner);
+        VBox vbox = new VBox(sam3Label, textPane, cbResetPrompts, confidenceThreshPane);
+
+        add(vbox, 0, i, GridPane.REMAINING, 1);
+    }
+
     private void addCommandPane(int row) {
         Action actionRectangle = command.getQuPath().getToolManager().getToolAction(PathTools.RECTANGLE);
         ToggleButton btnRectangle = ActionTools.createToggleButtonWithGraphicOnly(actionRectangle);
@@ -229,19 +279,39 @@ public class SAMPromptPane extends GridPane {
         Label label = new Label("Draw prompts");
         label.setTooltip(new Tooltip("Draw foreground or background prompts.\n" +
                 "Please select a rectangle or points tool to start."));
+        ReadOnlyObjectProperty<PathTool> selectedToolProperty = command.getQuPath().getToolManager()
+                .selectedToolProperty();
         RadioButton radioForeground = new RadioButton("Foreground");
         radioForeground.setTooltip(new Tooltip(
                 "Draw foreground prompt.\n" +
                         "Requires rectangle or point tool to be selected."));
         radioForeground.disableProperty().bind(
-                command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.POINTS).and(
-                        command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.RECTANGLE)));
+                Bindings.createBooleanBinding(
+                        () -> {
+                            return isSAM3CompatibleBinding
+                                    .and(selectedToolProperty.isNotEqualTo(PathTools.RECTANGLE))
+                                    .get() ||
+                                    isSAM3CompatibleBinding.not()
+                                            .and(selectedToolProperty.isNotEqualTo(PathTools.POINTS))
+                                            .and(selectedToolProperty.isNotEqualTo(PathTools.RECTANGLE))
+                                            .get();
+                        },
+                        selectedToolProperty, isSAM3CompatibleBinding));
         RadioButton radioBackground = new RadioButton("Background");
         radioBackground.setTooltip(new Tooltip(
                 "Draw background prompt.\n" +
                         "Requires point tool to be selected."));
-        radioBackground.disableProperty()
-                .bind(command.getQuPath().getToolManager().selectedToolProperty().isNotEqualTo(PathTools.POINTS));
+        radioBackground.disableProperty().bind(
+                Bindings.createBooleanBinding(
+                        () -> {
+                            return isSAM3CompatibleBinding
+                                    .and(selectedToolProperty.isNotEqualTo(PathTools.RECTANGLE))
+                                    .get() ||
+                                    isSAM3CompatibleBinding.not()
+                                            .and(selectedToolProperty.isNotEqualTo(PathTools.POINTS))
+                                            .get();
+                        },
+                        selectedToolProperty, isSAM3CompatibleBinding));
         ObjectProperty<PathClass> autoAnnotation = PathPrefs.autoSetAnnotationClassProperty();
         if (autoAnnotation.get() != null && PathClassTools.isIgnoredClass(autoAnnotation.get()))
             radioBackground.setSelected(true);

@@ -19,7 +19,8 @@ import org.elephant.sam.entities.SAMPromptMode;
 import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.entities.SAMWeights;
 import org.elephant.sam.parameters.SAM2VideoPromptObject;
-import org.elephant.sam.parameters.SAM2VideoPromptObject.Builder;
+import org.elephant.sam.parameters.SAM3VideoPromptObject;
+import org.elephant.sam.parameters.SAMVideoPromptObject;
 import org.elephant.sam.tasks.SAM3DetectionTask;
 import org.elephant.sam.tasks.SAMAutoMaskTask;
 import org.elephant.sam.tasks.SAMCancelDownloadTask;
@@ -835,7 +836,7 @@ public class SAMMainCommand implements Runnable {
         }
         List<PathObject> topLevelObjects = getTopLevelObjects(selectedObjects);
         Map<Integer, RegionRequest> regionRequestMap = new HashMap<>();
-        Map<Integer, List<SAM2VideoPromptObject>> objs = new HashMap<>();
+        Map<Integer, List<SAMVideoPromptObject>> objs = new HashMap<>();
         ImageServer<BufferedImage> renderedServer = null;
         try {
             renderedServer = Utils.createRenderedServer(viewer);
@@ -864,7 +865,6 @@ public class SAMMainCommand implements Runnable {
                 pathClassToIndex.put(objectClass, objectIndex);
                 indexToPathClass.put(objectIndex, objectClass);
             }
-            Builder builder = SAM2VideoPromptObject.builder(objectIndex);
             final ROI roi = topLevelObject.getROI();
             RegionRequest regionRequest = null;
             if (samPromptModeProperty.get() == SAMPromptMode.XYZ) {
@@ -882,49 +882,81 @@ public class SAMMainCommand implements Runnable {
                         objsKey);
                 continue;
             }
-            if (roi instanceof PointsROI) {
-                PointsROI pointsROI = (PointsROI) roi;
-                if (isForegroundObject(topLevelObject)) {
-                    builder = builder.addToForeground(Utils.getCoordinates(pointsROI, regionRequest,
-                            regionRequest.getWidth(), regionRequest.getHeight()));
-                } else {
-                    builder = builder.addToBackground(Utils.getCoordinates(pointsROI, regionRequest,
-                            regionRequest.getWidth(), regionRequest.getHeight()));
-                }
-            } else if (roi instanceof RectangleROI) {
-                RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(),
-                        regionRequest.getDownsample(), roi);
-                builder = builder.bbox(
-                        (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / regionRequest.getDownsample()),
-                        (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / regionRequest.getDownsample()),
-                        (int) Math
-                                .round((roiRegion.getMaxX() - regionRequest.getMinX()) / regionRequest.getDownsample()),
-                        (int) Math.round(
-                                (roiRegion.getMaxY() - regionRequest.getMinY()) / regionRequest.getDownsample()));
-                for (PathObject childObject : topLevelObject.getChildObjects()) {
-                    final ROI childROOI = childObject.getROI();
-                    if (childROOI instanceof PointsROI) {
-                        PointsROI pointsChildROI = (PointsROI) childROOI;
-                        if (isForegroundObject(childObject)) {
-                            builder = builder.addToForeground(Utils.getCoordinates(pointsChildROI, regionRequest,
-                                    regionRequest.getWidth(), regionRequest.getHeight()));
-                        } else {
-                            builder = builder.addToBackground(Utils.getCoordinates(pointsChildROI, regionRequest,
-                                    regionRequest.getWidth(), regionRequest.getHeight()));
+            if (!samTypeProperty.get().isSAM3Compatible()) {
+                SAM2VideoPromptObject.Builder builder = SAM2VideoPromptObject.builder(objectIndex);
+                if (roi instanceof PointsROI) {
+                    PointsROI pointsROI = (PointsROI) roi;
+                    if (isForegroundObject(topLevelObject)) {
+                        builder = builder.addToForeground(Utils.getCoordinates(pointsROI, regionRequest,
+                                regionRequest.getWidth(), regionRequest.getHeight()));
+                    } else {
+                        builder = builder.addToBackground(Utils.getCoordinates(pointsROI, regionRequest,
+                                regionRequest.getWidth(), regionRequest.getHeight()));
+                    }
+                } else if (roi instanceof RectangleROI) {
+                    RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                            regionRequest.getDownsample(), roi);
+                    builder = builder.bbox(
+                            (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / regionRequest.getDownsample()),
+                            (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / regionRequest.getDownsample()),
+                            (int) Math
+                                    .round((roiRegion.getMaxX() - regionRequest.getMinX())
+                                            / regionRequest.getDownsample()),
+                            (int) Math.round(
+                                    (roiRegion.getMaxY() - regionRequest.getMinY()) / regionRequest.getDownsample()));
+                    for (PathObject childObject : topLevelObject.getChildObjects()) {
+                        final ROI childROOI = childObject.getROI();
+                        if (childROOI instanceof PointsROI) {
+                            PointsROI pointsChildROI = (PointsROI) childROOI;
+                            if (isForegroundObject(childObject)) {
+                                builder = builder.addToForeground(Utils.getCoordinates(pointsChildROI, regionRequest,
+                                        regionRequest.getWidth(), regionRequest.getHeight()));
+                            } else {
+                                builder = builder.addToBackground(Utils.getCoordinates(pointsChildROI, regionRequest,
+                                        regionRequest.getWidth(), regionRequest.getHeight()));
+                            }
                         }
                     }
+                } else {
+                    continue;
                 }
-            } else {
-                continue;
-            }
-            final SAM2VideoPromptObject sam2VideoPromptObject = builder.build();
+                final SAM2VideoPromptObject sam2VideoPromptObject = builder.build();
 
-            List<SAM2VideoPromptObject> objectList = objs.getOrDefault(objsKey, new ArrayList<>());
-            objectList.add(sam2VideoPromptObject);
-            objs.put(objsKey, objectList);
+                List<SAMVideoPromptObject> objectList = objs.getOrDefault(objsKey, new ArrayList<>());
+                objectList.add(sam2VideoPromptObject);
+                objs.put(objsKey, objectList);
+            } else {
+                SAM3VideoPromptObject.Builder builder = SAM3VideoPromptObject.builder(objectIndex);
+                builder.text(getTextPromptProperty().get());
+                if (roi instanceof RectangleROI) {
+                    RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(),
+                            regionRequest.getDownsample(), roi);
+                    if (objectClass != null && PathClassTools.isIgnoredClass(objectClass)) {
+                        builder = builder.addNegativeBbox(
+                                (roiRegion.getMinX() - regionRequest.getMinX()) / regionRequest.getDownsample(),
+                                (roiRegion.getMinY() - regionRequest.getMinY()) / regionRequest.getDownsample(),
+                                (roiRegion.getMaxX() - roiRegion.getMinX()) / regionRequest.getDownsample(),
+                                (roiRegion.getMaxY() - roiRegion.getMinY()) / regionRequest.getDownsample());
+                    } else {
+                        builder = builder.addPositiveBbox(
+                                (roiRegion.getMinX() - regionRequest.getMinX()) / regionRequest.getDownsample(),
+                                (roiRegion.getMinY() - regionRequest.getMinY()) / regionRequest.getDownsample(),
+                                (roiRegion.getMaxX() - roiRegion.getMinX()) / regionRequest.getDownsample(),
+                                (roiRegion.getMaxY() - roiRegion.getMinY()) / regionRequest.getDownsample());
+                    }
+                } else {
+                    continue;
+                }
+                final SAM3VideoPromptObject sam3VideoPromptObject = builder.build();
+
+                List<SAMVideoPromptObject> objectList = objs.getOrDefault(objsKey, new ArrayList<>());
+                objectList.add(sam3VideoPromptObject);
+                objs.put(objsKey, objectList);
+            }
         }
-        if (objs.isEmpty()) {
-            updateInfoTextWithError("No prompts found in the specified range!");
+        if (objs.isEmpty() && (!samTypeProperty.get().isSAM3Compatible() || getTextPromptProperty().get().isBlank()
+                || getTextPromptProperty().get().equals("visual"))) {
+            updateInfoTextWithError("No effective prompts found in the specified range!");
             return;
         }
         final List<RegionRequest> regionRequests = new ArrayList<>();
@@ -944,9 +976,11 @@ public class SAMMainCommand implements Runnable {
         } else {
             throw new IllegalArgumentException("Unsupported prompt mode: " + samPromptModeProperty.get());
         }
+        String endpointName = samTypeProperty.get().isSAM3Compatible() ? "sam3video" : "video";
         SAMSequenceTask task = SAMSequenceTask.builder(qupath.getViewer())
                 .regionRequests(regionRequests)
                 .serverURL(serverURLProperty.get())
+                .endpointName(endpointName)
                 .verifySSL(verifySSLProperty.get())
                 .model(samTypeProperty.get())
                 .promptMode(samPromptModeProperty.get())
@@ -988,16 +1022,16 @@ public class SAMMainCommand implements Runnable {
         StringBuilder sbObjs = new StringBuilder();
         sbObjs.append("[\n");
         int i = 0;
-        for (Map.Entry<Integer, List<SAM2VideoPromptObject>> entry : objs.entrySet()) {
+        for (Map.Entry<Integer, List<SAMVideoPromptObject>> entry : objs.entrySet()) {
             if (i++ > 0)
                 sbObjs.append(",\n");
             int key = entry.getKey();
             sbObjs.append(String.format("    %d: ", key));
-            List<SAM2VideoPromptObject> promptObjectList = entry.getValue();
+            List<SAMVideoPromptObject> promptObjectList = entry.getValue();
             if (promptObjectList.isEmpty())
                 continue;
             sbObjs.append("[");
-            for (SAM2VideoPromptObject promptObject : promptObjectList) {
+            for (SAMVideoPromptObject promptObject : promptObjectList) {
                 sbObjs.append(promptObject.getBuilderAsGroovyScript());
                 sbObjs.append(".build(),");
             }
@@ -1630,10 +1664,18 @@ public class SAMMainCommand implements Runnable {
             }
         }
         if (liveModeProperty.get()) {
-            List<PathObject> foregroundObjects = getForegroundObjects(event.getChangedObjects());
-            if (!foregroundObjects.isEmpty()) {
-                List<PathObject> backgroundObjects = getBackgroundObjects(event.getHierarchy().getAnnotationObjects());
-                submitDetectionTask(foregroundObjects, backgroundObjects);
+            if (getSamTypeProperty().get().isSAM3Compatible()) {
+                String textPrompt = getTextPromptProperty().get();
+                List<PathObject> foregroundObjects = getSAM3ForegroundObjects(event.getChangedObjects());
+                List<PathObject> backgroundObjects = getSAM3BackgroundObjects(event.getChangedObjects());
+                submitSAM3DetectionTask(textPrompt, foregroundObjects, backgroundObjects);
+            } else {
+                List<PathObject> foregroundObjects = getForegroundObjects(event.getChangedObjects());
+                if (!foregroundObjects.isEmpty()) {
+                    List<PathObject> backgroundObjects = getBackgroundObjects(
+                            event.getHierarchy().getAnnotationObjects());
+                    submitDetectionTask(foregroundObjects, backgroundObjects);
+                }
             }
         }
     }

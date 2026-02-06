@@ -7,8 +7,8 @@ import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
 import org.elephant.sam.entities.SAMPromptMode;
-import org.elephant.sam.parameters.SAM2VideoPromptObject;
 import org.elephant.sam.parameters.SAM2VideoPromptParameters;
+import org.elephant.sam.parameters.SAMVideoPromptObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,13 +58,15 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
      */
     private final List<RegionRequest> regionRequests = new ArrayList<>();
 
-    private final Map<Integer, List<SAM2VideoPromptObject>> objs;
+    private final Map<Integer, List<SAMVideoPromptObject>> objs;
 
     private final boolean setRandomColor;
 
     private final boolean setName;
 
     private final String serverURL;
+
+    private final String endpointName;
 
     private final boolean verifySSL;
 
@@ -83,6 +85,9 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     private SAMSequenceTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
+
+        this.endpointName = builder.endpointName;
+        Objects.requireNonNull(endpointName, "Endpoint name must not be null!");
 
         this.verifySSL = builder.verifySSL;
         Objects.requireNonNull(verifySSL, "Verify SSL must not be null!");
@@ -193,7 +198,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         updateMessage("Processing images...");
-        final String endpointURL = String.format("%svideo/", Utils.ensureTrailingSlash(serverURL));
+        final String endpointURL = String.format("%s%s/", Utils.ensureTrailingSlash(serverURL), endpointName);
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(prompt));
 
@@ -252,12 +257,13 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
 
         private QuPathViewer viewer;
 
-        private Map<Integer, List<SAM2VideoPromptObject>> objs;
+        private Map<Integer, List<SAMVideoPromptObject>> objs;
 
         private ImageServer<BufferedImage> server;
         private List<RegionRequest> regionRequests = new ArrayList<>();
 
         private String serverURL;
+        private String endpointName;
         private boolean verifySSL;
         private SAMType model = SAMType.VIT_L;
         private SAMPromptMode promptMode = SAMPromptMode.XYZ;
@@ -280,6 +286,17 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
+            return this;
+        }
+
+        /**
+         * Specify the endpoint name (required).
+         * 
+         * @param endpointName
+         * @return this builder
+         */
+        public Builder endpointName(final String endpointName) {
+            this.endpointName = endpointName;
             return this;
         }
 
@@ -325,7 +342,7 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          * @param foregroundObjects
          * @return this builder
          */
-        public Builder objs(final Map<Integer, List<SAM2VideoPromptObject>> objs) {
+        public Builder objs(final Map<Integer, List<SAMVideoPromptObject>> objs) {
             this.objs = objs;
             return this;
         }

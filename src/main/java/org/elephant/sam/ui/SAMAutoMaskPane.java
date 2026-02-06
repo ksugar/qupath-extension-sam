@@ -2,8 +2,13 @@ package org.elephant.sam.ui;
 
 import org.elephant.sam.commands.SAMMainCommand;
 import org.elephant.sam.entities.SAMOutput;
+import org.elephant.sam.entities.SAMType;
 
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
@@ -24,6 +29,15 @@ public class SAMAutoMaskPane extends GridPane {
 
         private final SAMMainCommand command;
 
+        private final ObjectProperty<SAMType> samTypeProperty = new SimpleObjectProperty<>();
+
+        /**
+         * Flag to indicate that the SAM type is compatible with SAM3 prediction.
+         */
+        private final BooleanBinding isSAM3CompatibleBinding = Bindings.createBooleanBinding(
+                        () -> samTypeProperty.get() != null && samTypeProperty.get().isSAM3Compatible(),
+                        samTypeProperty);
+
         /**
          * Create a new pane for the SAM auto mask.
          *
@@ -34,6 +48,7 @@ public class SAMAutoMaskPane extends GridPane {
                 super();
 
                 this.command = command;
+                this.samTypeProperty.bind(command.getSamTypeProperty());
 
                 int row = 0;
 
@@ -243,7 +258,7 @@ public class SAMAutoMaskPane extends GridPane {
                 btnRunOnce.setMaxWidth(Double.MAX_VALUE);
                 btnRunOnce.setTooltip(new Tooltip(
                                 "Run the model once using the selected annotations (points or rectangles)"));
-                btnRunOnce.disableProperty().bind(command.getDisableRunning());
+                btnRunOnce.disableProperty().bind(isSAM3CompatibleBinding.or(command.getDisableRunning()));
 
                 Pane buttonPane = SAMUIUtils.createColumnPane(btnResetParameters, btnRunOnce);
                 add(buttonPane, 0, row, GridPane.REMAINING, 1);

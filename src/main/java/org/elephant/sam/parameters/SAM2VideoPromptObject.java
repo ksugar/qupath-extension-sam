@@ -10,7 +10,7 @@ import org.locationtech.jts.geom.Coordinate;
  * Represents a SAM2 video input object.
  * This class encapsulates the information related to a video input object in the SAM2 system.
  */
-public class SAM2VideoPromptObject {
+public class SAM2VideoPromptObject implements SAMVideoPromptObject {
 
 	@SuppressWarnings("unused")
 	private int obj_id;
@@ -45,6 +45,7 @@ public class SAM2VideoPromptObject {
 		builderAsGroovyScript = builder.builderAsGroovyScript();
 	}
 
+	@Override
 	public String getBuilderAsGroovyScript() {
 		return builderAsGroovyScript;
 	}

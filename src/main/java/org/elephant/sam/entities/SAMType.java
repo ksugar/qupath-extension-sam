@@ -5,7 +5,7 @@ package org.elephant.sam.entities;
  */
 public enum SAMType {
 
-    VIT_H, VIT_L, VIT_B, VIT_T, SAM2_L, SAM2_BP, SAM2_S, SAM2_T;
+    VIT_H, VIT_L, VIT_B, VIT_T, SAM2_L, SAM2_BP, SAM2_S, SAM2_T, SAM3;
 
     /**
      * Model name as used in the SAM code.
@@ -30,6 +30,8 @@ public enum SAMType {
                 return "sam2_s";
             case SAM2_T:
                 return "sam2_t";
+            case SAM3:
+                return "sam3";
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }
@@ -63,6 +65,8 @@ public enum SAMType {
                 return "sam2_s (small)";
             case SAM2_T:
                 return "sam2_t (tiny)";
+            case SAM3:
+                return "sam3";
         }
         throw new IllegalArgumentException("Unknown SAM model");
     }
@@ -73,6 +77,16 @@ public enum SAMType {
             case SAM2_BP:
             case SAM2_S:
             case SAM2_T:
+            case SAM3:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public boolean isSAM3Compatible() {
+        switch (this) {
+            case SAM3:
                 return true;
             default:
                 return false;

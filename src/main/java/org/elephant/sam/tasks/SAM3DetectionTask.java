@@ -1,14 +1,10 @@
 package org.elephant.sam.tasks;
 
-import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
-import org.apache.hc.core5.http.ContentType;
 import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMType;
 import org.elephant.sam.http.HttpUtils;
 import org.elephant.sam.entities.SAMOutput;
-import org.elephant.sam.entities.SAMPromptMode;
-import org.elephant.sam.parameters.SAM2VideoPromptParameters;
-import org.elephant.sam.parameters.SAMVideoPromptObject;
+import org.elephant.sam.parameters.SAM3PromptParameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +17,8 @@ import qupath.lib.objects.PathObject;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.RectangleROI;
+import qupath.lib.roi.interfaces.ROI;
 
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
@@ -28,78 +26,65 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 
 /**
- * A task to perform SAM video on a given sequence of images.
+ * A task to perform SAM detection on a given image.
  * <p>
  * This task is designed to be run in a background thread, and will return a list of PathObjects representing the
  * detected objects.
  * <p>
  * The task will also add the detected objects to the hierarchy, and update the viewer to show the detected objects.
  */
-public class SAMSequenceTask extends Task<List<PathObject>> {
+public class SAM3DetectionTask extends Task<List<PathObject>> {
 
-    private static final Logger logger = LoggerFactory.getLogger(SAMSequenceTask.class);
+    private static final Logger logger = LoggerFactory.getLogger(SAM3DetectionTask.class);
 
     private final ImageData<BufferedImage> imageData;
     private ImageServer<BufferedImage> renderedServer;
 
     /**
-     * The field of view visible within the viewer at the time the detection task
+     * In the GUI mode, the field of view visible within the viewer at the time the detection task
      * was created.
      */
-    private final List<RegionRequest> regionRequests = new ArrayList<>();
+    private RegionRequest regionRequest;
 
-    private final Map<Integer, List<SAMVideoPromptObject>> objs;
+    private final String textPrompt;
+    private final List<PathObject> positiveBboxes;
+    private final List<PathObject> negativeBboxes;
 
     private final boolean setRandomColor;
-
     private final boolean setName;
+    private final SAMOutput outputType;
 
     private final String serverURL;
-
-    private final String endpointName;
 
     private final boolean verifySSL;
 
     private final SAMType model;
 
-    private final SAMPromptMode promptMode;
-
     private final String checkpointUrl;
 
-    private final int planePosition;
+    private final boolean resetPrompts;
 
-    private final int indexOffset;
+    private final double confidenceThresh;
 
-    private final Map<Integer, PathClass> indexToPathClass;
-
-    private SAMSequenceTask(Builder builder) {
+    private SAM3DetectionTask(Builder builder) {
         this.serverURL = builder.serverURL;
         Objects.requireNonNull(serverURL, "Server must not be null!");
 
-        this.endpointName = builder.endpointName;
-        Objects.requireNonNull(endpointName, "Endpoint name must not be null!");
-
         this.verifySSL = builder.verifySSL;
-        Objects.requireNonNull(verifySSL, "Verify SSL must not be null!");
+        Objects.requireNonNull(serverURL, "Verify SSL must not be null!");
 
         this.model = builder.model;
         Objects.requireNonNull(model, "Model must not be null!");
 
-        this.promptMode = builder.promptMode;
-        Objects.requireNonNull(promptMode, "Prompt mode must not be null!");
-
         QuPathViewer viewer = builder.viewer;
-        Objects.requireNonNull(viewer, "Viewer must not be null!");
+        Objects.requireNonNull(builder, "Viewer must not be null!");
 
         this.imageData = viewer.getImageData();
         Objects.requireNonNull(imageData, "ImageData must not be null!");
@@ -117,88 +102,86 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             }
         }
 
-        this.regionRequests.clear();
-        this.regionRequests.addAll(builder.regionRequests);
+        this.regionRequest = builder.regionRequest;
+        if (this.regionRequest == null) {
+            this.regionRequest = Utils.getViewerRegion(viewer, renderedServer);
+        }
 
-        this.planePosition = builder.planePosition;
+        this.textPrompt = builder.textPrompt;
+        this.positiveBboxes = new ArrayList<>(builder.positiveBboxes);
+        this.negativeBboxes = new ArrayList<>(builder.negativeBboxes);
 
-        this.indexOffset = builder.indexOffset;
-        this.objs = builder.objs;
-
+        this.outputType = builder.outputType;
         this.setName = builder.setName;
         this.setRandomColor = builder.setRandomColor;
         this.checkpointUrl = builder.checkpointUrl;
-        this.indexToPathClass = builder.indexToPathClass;
-    }
-
-    private boolean uploadImages(String dirname) throws IOException, InterruptedException {
-        int paddingWidth = String.valueOf(regionRequests.size()).length();
-        String filenameFormat = String.format("%%0%dd.jpg", paddingWidth);
-        AtomicBoolean cancelled = new AtomicBoolean(false);
-        AtomicInteger progress = new AtomicInteger(0);
-        final int total = regionRequests.size();
-        IntStream.range(0, total).parallel().forEach(i -> {
-            if (cancelled.get())
-                return;
-            final String boundary = "----------------" + System.currentTimeMillis();
-            try {
-                final BufferedImage img = renderedServer.readRegion(regionRequests.get(i));
-                final String endpointURL = String.format("%supload/", Utils.ensureTrailingSlash(serverURL));
-                MultipartEntityBuilder entityBuilder = MultipartEntityBuilder.create()
-                        .setBoundary(boundary)
-                        .addTextBody("dirname", dirname, ContentType.TEXT_PLAIN)
-                        .addBinaryBody("file", Utils.bufferedImageToJpegBytes(img), ContentType.create("image/jpeg"),
-                                String.format(filenameFormat, i));
-                HttpResponse<String> response = HttpUtils.postMultipartRequest(endpointURL, verifySSL, entityBuilder);
-                if (response.statusCode() != HttpURLConnection.HTTP_OK) {
-                    logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
-                    cancelled.set(true);
-                } else {
-                    updateMessage(String.format("%d/%d images uploaded", progress.incrementAndGet(), total));
-                    logger.info("Uploaded image {}", response.body());
-                }
-            } catch (IOException e) {
-                logger.error("Failed to upload image", e);
-                cancelled.set(true);
-            }
-        });
-        if (cancelled.get()) {
-            return false;
-        }
-        return true;
+        this.resetPrompts = builder.resetPrompts;
+        this.confidenceThresh = builder.confidenceThresh;
     }
 
     @Override
     protected List<PathObject> call() throws Exception {
         try {
-            String dirname = UUID.randomUUID().toString();
-            if (uploadImages(dirname)) {
-                return detectObjects(dirname);
-            } else {
-                cancel();
-                return Collections.emptyList();
-            }
+            return detectObjects();
         } catch (InterruptedException e) {
             logger.warn("Interrupted while detecting objects", e);
             return Collections.emptyList();
         }
     }
 
-    private List<PathObject> detectObjects(String dirname)
+    private List<PathObject> detectObjects()
             throws InterruptedException, IOException {
-        final SAM2VideoPromptParameters prompt = SAM2VideoPromptParameters.builder(model)
-                .objs(objs)
-                .dirname(dirname)
-                .axes(promptMode.toString())
-                .planePosition(planePosition)
-                .checkpointUrl(checkpointUrl)
+
+        SAM3PromptParameters.Builder promptBuilder = SAM3PromptParameters.builder(model)
+                .checkpointUrl(checkpointUrl);
+        double downsample = regionRequest.getDownsample();
+
+        if (textPrompt != null && !textPrompt.isEmpty()) {
+            promptBuilder = promptBuilder.textPrompt(textPrompt);
+        }
+
+        for (PathObject positiveBbox : positiveBboxes) {
+            ROI roi = positiveBbox.getROI();
+            if (!(roi instanceof RectangleROI)) {
+                logger.warn("Only rectangular ROIs are supported for positive bboxes; skipping non-rectangular ROI");
+                continue;
+            }
+            RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(), downsample, roi);
+            promptBuilder = promptBuilder.addPositiveBbox(
+                    (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / downsample),
+                    (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / downsample),
+                    (int) Math.round((roiRegion.getMaxX() - roiRegion.getMinX()) / downsample),
+                    (int) Math.round((roiRegion.getMaxY() - roiRegion.getMinY()) / downsample));
+        }
+
+        for (PathObject negativeBbox : negativeBboxes) {
+            ROI roi = negativeBbox.getROI();
+            if (!(roi instanceof RectangleROI)) {
+                logger.warn("Only rectangular ROIs are supported for negative bboxes; skipping non-rectangular ROI");
+                continue;
+            }
+            RegionRequest roiRegion = RegionRequest.createInstance(renderedServer.getPath(), downsample, roi);
+            promptBuilder = promptBuilder.addNegativeBbox(
+                    (int) ((roiRegion.getMinX() - regionRequest.getMinX()) / downsample),
+                    (int) ((roiRegion.getMinY() - regionRequest.getMinY()) / downsample),
+                    (int) Math.round((roiRegion.getMaxX() - roiRegion.getMinX()) / downsample),
+                    (int) Math.round((roiRegion.getMaxY() - roiRegion.getMinY()) / downsample));
+        }
+
+        promptBuilder = promptBuilder.textPrompt(textPrompt)
+                .resetPrompts(resetPrompts)
+                .confidenceThresh(confidenceThresh);
+
+        BufferedImage img = renderedServer.readRegion(regionRequest);
+
+        final SAM3PromptParameters prompt = promptBuilder
+                .b64img(Utils.base64EncodePNG(img))
                 .build();
 
         if (isCancelled())
             return Collections.emptyList();
 
-        updateMessage("Processing images...");
-        final String endpointURL = String.format("%s%s/", Utils.ensureTrailingSlash(serverURL), endpointName);
+        final String endpointURL = String.format("%ssam3/", Utils.ensureTrailingSlash(serverURL));
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(prompt));
 
@@ -206,29 +189,23 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
             return Collections.emptyList();
 
         if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-            updateMessage("Processing done.");
-            return parseResponse(response, regionRequests.get(0));
+            return parseResponse(response, regionRequest, PathClass.NULL_CLASS);
         } else {
             logger.error("HTTP response: {}, {}", response.statusCode(), response.body());
             return Collections.emptyList();
         }
     }
 
-    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest) {
+    private List<PathObject> parseResponse(HttpResponse<String> response, RegionRequest regionRequest,
+            PathClass pathClass) {
         List<PathObject> samObjects = Utils.parsePathObjects(response.body());
         AffineTransform transform = new AffineTransform();
         transform.translate(regionRequest.getMinX(), regionRequest.getMinY());
         transform.scale(regionRequest.getDownsample(), regionRequest.getDownsample());
+        ImagePlane plane = regionRequest.getImagePlane();
         // Retain the original classification, and set names/colors if required
         List<PathObject> updatedObjects = new ArrayList<>();
         for (PathObject pathObject : samObjects) {
-            ImagePlane plane = pathObject.getROI().getImagePlane();
-            if (promptMode == SAMPromptMode.XYZ) {
-                plane = ImagePlane.getPlane(indexOffset + plane.getZ(), plane.getT());
-            } else if (promptMode == SAMPromptMode.XYT) {
-                plane = ImagePlane.getPlane(plane.getZ(), indexOffset + plane.getT());
-            }
-            PathClass pathClass = indexToPathClass.get(Integer.valueOf(pathObject.getPathClass().getName()));
             pathObject = Utils.applyTransformAndClassification(pathObject, transform, pathClass, plane);
             if (setName)
                 Utils.setNameForSAM(pathObject);
@@ -236,11 +213,11 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
                 Utils.setRandomColor(pathObject);
             updatedObjects.add(pathObject);
         }
-        return Utils.selectByOutputType(updatedObjects, SAMOutput.SINGLE_MASK);
+        return Utils.selectByOutputType(updatedObjects, outputType);
     }
 
     /**
-     * New builder for a SAM sequence class.
+     * New builder for a SAM detection class.
      * 
      * @param viewer
      *            the viewer containing the image to be processed
@@ -251,28 +228,28 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
     }
 
     /**
-     * Builder for a SAMSequenceTask class.
+     * Builder for a SAMDetectionTask class.
      */
     public static class Builder {
 
         private QuPathViewer viewer;
 
-        private Map<Integer, List<SAMVideoPromptObject>> objs;
+        private String textPrompt;
+        private Collection<PathObject> positiveBboxes = new LinkedHashSet<>();
+        private Collection<PathObject> negativeBboxes = new LinkedHashSet<>();
 
         private ImageServer<BufferedImage> server;
-        private List<RegionRequest> regionRequests = new ArrayList<>();
+        private RegionRequest regionRequest;
 
         private String serverURL;
-        private String endpointName;
-        private boolean verifySSL;
+        private boolean verifySSL = false;
         private SAMType model = SAMType.VIT_L;
-        private SAMPromptMode promptMode = SAMPromptMode.XYZ;
+        private SAMOutput outputType = SAMOutput.SINGLE_MASK;
         private boolean setRandomColor = true;
         private boolean setName = true;
         private String checkpointUrl;
-        private int indexOffset;
-        private Map<Integer, PathClass> indexToPathClass;
-        private int planePosition;
+        private boolean resetPrompts = false;
+        private double confidenceThresh = 0.4;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;
@@ -286,17 +263,6 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          */
         public Builder serverURL(final String serverURL) {
             this.serverURL = serverURL;
-            return this;
-        }
-
-        /**
-         * Specify the endpoint name (required).
-         * 
-         * @param endpointName
-         * @return this builder
-         */
-        public Builder endpointName(final String endpointName) {
-            this.endpointName = endpointName;
             return this;
         }
 
@@ -324,26 +290,49 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         }
 
         /**
-         * Specify the SAM prompt mode to use.
-         * Default is SAMPromptMode.XYZ.
+         * Set the text prompt (optional).
          * 
-         * @param promptMode
-         * @return
+         * @param textPrompt
+         * @return this builder
          */
-        public Builder promptMode(final SAMPromptMode promptMode) {
-            this.promptMode = promptMode;
+        public Builder textPrompt(final String textPrompt) {
+            this.textPrompt = textPrompt;
             return this;
         }
 
         /**
-         * Add objects representing foreground prompts.
+         * Add objects representing positive prompts.
          * Each will be treated as a separate prompt.
          * 
-         * @param foregroundObjects
+         * @param positiveObjects
          * @return this builder
          */
-        public Builder objs(final Map<Integer, List<SAMVideoPromptObject>> objs) {
-            this.objs = objs;
+        public Builder addPositiveBboxes(final Collection<? extends PathObject> positiveBboxes) {
+            this.positiveBboxes.addAll(positiveBboxes);
+            return this;
+        }
+
+        /**
+         * Add objects representing negative prompts.
+         * negative prompts are use with all positive prompts.
+         * 
+         * @param negativeObjects
+         * @return this builder
+         */
+        public Builder addNegativeBboxes(final Collection<? extends PathObject> negativeBboxes) {
+            this.negativeBboxes.addAll(negativeBboxes);
+            return this;
+        }
+
+        /**
+         * Optionally request the output type.
+         * Default is SAMOutput.SINGLE_MASK.
+         * 
+         * @param outputType
+         * @return this builder
+         */
+        public Builder outputType(final SAMOutput outputType) {
+            this.outputType = outputType;
             return this;
         }
 
@@ -361,15 +350,13 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         }
 
         /**
-         * Set the region requests to use.
-         * This is used to determine the region of interest for the objects created.
+         * Specify the region request (required).
          * 
-         * @param regionRequests
+         * @param regionRequest
          * @return this builder
          */
-        public Builder regionRequests(final List<RegionRequest> regionRequests) {
-            this.regionRequests.clear();
-            this.regionRequests.addAll(regionRequests);
+        public Builder regionRequest(final RegionRequest regionRequest) {
+            this.regionRequest = regionRequest;
             return this;
         }
 
@@ -410,36 +397,24 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
         }
 
         /**
-         * Specify the index to start from.
+         * Specify whether to reset prompts before detection.
          * 
-         * @param indexOffset
+         * @param resetPrompts
          * @return this builder
          */
-        public Builder indexOffset(final int indexOffset) {
-            this.indexOffset = indexOffset;
+        public Builder resetPrompts(final boolean resetPrompts) {
+            this.resetPrompts = resetPrompts;
             return this;
         }
 
         /**
-         * Specify the mapping from index to PathClass.
+         * Specify the confidence threshold for predicted masks.
          * 
-         * @param indexToPathClass
+         * @param confidenceThresh
          * @return this builder
          */
-        public Builder indexToPathClass(final Map<Integer, PathClass> indexToPathClass) {
-            this.indexToPathClass = indexToPathClass;
-            return this;
-        }
-
-        /**
-         * Specify the plane position.
-         * This is used to determine the plane for the objects created.
-         * 
-         * @param planePosition
-         * @return this builder
-         */
-        public Builder planePosition(final int planePosition) {
-            this.planePosition = planePosition;
+        public Builder confidenceThresh(final double confidenceThresh) {
+            this.confidenceThresh = confidenceThresh;
             return this;
         }
 
@@ -448,8 +423,8 @@ public class SAMSequenceTask extends Task<List<PathObject>> {
          * 
          * @return
          */
-        public SAMSequenceTask build() {
-            return new SAMSequenceTask(this);
+        public SAM3DetectionTask build() {
+            return new SAM3DetectionTask(this);
         }
 
     }

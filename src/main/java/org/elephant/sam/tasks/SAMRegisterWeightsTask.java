@@ -1,5 +1,6 @@
 package org.elephant.sam.tasks;
 
+import org.elephant.sam.Utils;
 import org.elephant.sam.entities.SAMWeights;
 import org.elephant.sam.http.HttpUtils;
 import org.slf4j.Logger;
@@ -53,7 +54,7 @@ public class SAMRegisterWeightsTask extends Task<String> {
         if (isCancelled())
             return "Registration task cancelled";
 
-        final String endpointURL = String.format("%sweights/", serverURL);
+        final String endpointURL = String.format("%sweights/", Utils.ensureTrailingSlash(serverURL));
         final SAMWeights samWeights = new SAMWeights(samType, name, url);
         HttpResponse<String> response = HttpUtils.postRequest(endpointURL, verifySSL,
                 GsonTools.getInstance().toJson(samWeights));

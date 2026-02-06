@@ -1,6 +1,8 @@
 # QuPath extension SAM
 
-### New release v0.8: Flexible Groovy scripting support is added!
+### Latest release v0.9.0: Support for SAM3!
+
+The extension now supports [SAM3](https://github.com/facebookresearch/segment-anything-3) models for enhanced segmentation and tracking capabilities.
 
 The command history is also now available from `Automate` > `Show workflow command history` and `Automate` > `Create command history script` in the menu bar.
 
@@ -170,7 +172,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.8.0/qupath-extension-sam-0.8.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/qupath-extension-sam-0.9.0.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
 
@@ -188,10 +190,10 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.7.0/qupath-extension-sam-0.7.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/qupath-extension-sam-0.9.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 3. Restart QuPath application.
 
-Please note that you need to also update the [samapi](https://github.com/ksugar/samapi/tree/v0.6.1) server.  
+Please note that you need to also update the [samapi](https://github.com/ksugar/samapi) server.  
 To keep updated with the latest samapi server, follow the instructions [here](https://github.com/ksugar/samapi#update).
 
 Starting from QuPath `v0.6`, you can receive notifications about new releases of the extension by adding the following settings.
@@ -352,7 +354,15 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
+### Known issues
+- SAM3 video predictor does not work with negative bbox prompts. See https://github.com/facebookresearch/sam3/issues/335.
+
 ## Updates
+
+### v0.9.0
+- Support SAM3 (you need to use the [samapi](https://github.com/ksugar/samapi) server `v0.7.0` or above).
+- Accept server URL without a trailing slash.
+
 
 ### v0.8.0
 - Support flexible Groovy scripts to run SAM tasks. See [the example scripts](#example-scripts).

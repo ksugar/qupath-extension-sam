@@ -501,6 +501,7 @@ public class Utils {
         }
         StringBuilder sb = new StringBuilder("PathClass.getInstance(");
         sb.append("\"" + pathClass.getName() + "\"");
+        sb.append(")");
         return sb.toString();
     }
 
@@ -509,6 +510,13 @@ public class Utils {
             return "null";
         }
         return String.format("new ImagePlane(%d, %d, %d)", imagePlane.getC(), imagePlane.getZ(), imagePlane.getT());
+    }
+
+    public static String ensureTrailingSlash(String path) {
+        if (path == null || path.endsWith("/")) {
+            return path;
+        }
+        return path + "/";
     }
 
 }

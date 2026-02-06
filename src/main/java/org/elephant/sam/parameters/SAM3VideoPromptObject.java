@@ -130,16 +130,14 @@ public class SAM3VideoPromptObject implements SAMVideoPromptObject {
 				sb.append(".text(\"").append(text).append("\")");
 			}
 			if (positiveBboxes != null && !positiveBboxes.isEmpty()) {
-				sb.append(".addToPositiveBboxes([");
 				positiveBboxes.forEach(
-						bbox -> sb.append(String.format("[%f, %f, %f, %f], ", bbox[0], bbox[1], bbox[2], bbox[3])));
-				sb.delete(sb.length() - 2, sb.length()).append("])");
+						bbox -> sb.append(
+								String.format(".addPositiveBbox(%f, %f, %f, %f)", bbox[0], bbox[1], bbox[2], bbox[3])));
 			}
 			if (negativeBboxes != null && !negativeBboxes.isEmpty()) {
-				sb.append(".addToNegativeBboxes([");
 				negativeBboxes.forEach(
-						bbox -> sb.append(String.format("[%f, %f, %f, %f], ", bbox[0], bbox[1], bbox[2], bbox[3])));
-				sb.delete(sb.length() - 2, sb.length()).append("])");
+						bbox -> sb.append(
+								String.format(".addNegativeBbox(%f, %f, %f, %f)", bbox[0], bbox[1], bbox[2], bbox[3])));
 			}
 			return sb.toString();
 		}

@@ -978,6 +978,7 @@ public class SAMMainCommand implements Runnable {
         }
         String endpointName = samTypeProperty.get().isSAM3Compatible() ? "sam3video" : "video";
         SAMSequenceTask task = SAMSequenceTask.builder(qupath.getViewer())
+                .server(renderedServer)
                 .regionRequests(regionRequests)
                 .serverURL(serverURLProperty.get())
                 .endpointName(endpointName)
@@ -1063,7 +1064,7 @@ public class SAMMainCommand implements Runnable {
                                     Utils.getViewerRegion(viewer, renderedServer, 0, viewer.getTPosition()), "Z")));
         } else if (samPromptModeProperty.get() == SAMPromptMode.XYT) {
             sbRegionRequests.append(
-                    String.format("(fromIndex..toIndex).collect {%s}}",
+                    String.format("(fromIndex..toIndex).collect {%s}",
                             Utils.getGroovyScriptForCreateRegionRequest(
                                     Utils.getViewerRegion(viewer, renderedServer, viewer.getZPosition(), 0), "T")));
         } else {
@@ -1082,6 +1083,7 @@ public class SAMMainCommand implements Runnable {
                             .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
                             .regionRequests(regionRequests)
                             .serverURL("%s")
+                            .endpointName("%s")
                             .verifySSL(%b)
                             .model(%s)
                             .promptMode(%s)
@@ -1118,6 +1120,7 @@ public class SAMMainCommand implements Runnable {
                         indexToPathClassString,
                         regionRequestsString,
                         serverURLProperty.get(),
+                        endpointName,
                         verifySSLProperty.get(),
                         samTypeProperty.get().getFullyQualifiedName(),
                         samPromptModeProperty.get().getFullyQualifiedName(),
@@ -1480,66 +1483,66 @@ public class SAMMainCommand implements Runnable {
         });
         submitTask(task);
 
-        StringBuilder sbPositiveObjects = new StringBuilder();
+        StringBuilder sbPositiveBboxes = new StringBuilder();
         if (positiveBboxes.isEmpty()) {
-            sbPositiveObjects.append("[]");
+            sbPositiveBboxes.append("[]");
         } else {
-            sbPositiveObjects.append("[\n");
+            sbPositiveBboxes.append("[\n");
             int i = 0;
             for (PathObject pathObject : positiveBboxes) {
                 if (pathObject.getROI() instanceof RectangleROI) {
                     if (i++ > 0)
-                        sbPositiveObjects.append(",\n");
+                        sbPositiveBboxes.append(",\n");
                     RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
-                    sbPositiveObjects
+                    sbPositiveBboxes
                             .append("    PathObjects.createAnnotationObject(\n");
-                    sbPositiveObjects
+                    sbPositiveBboxes
                             .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
-                    sbPositiveObjects
+                    sbPositiveBboxes
                             .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
-                    sbPositiveObjects.append("\n");
-                    sbPositiveObjects.append("    ");
-                    sbPositiveObjects.append("),");
-                    sbPositiveObjects.append("\n");
+                    sbPositiveBboxes.append("\n");
+                    sbPositiveBboxes.append("    ");
+                    sbPositiveBboxes.append("),");
+                    sbPositiveBboxes.append("\n");
                 } else {
                     logger.warn("Skipping positive bbox object with unsupported ROI type: {}",
                             pathObject.getROI().getClass());
                 }
             }
-            sbPositiveObjects.append("]");
+            sbPositiveBboxes.append("]");
         }
 
-        StringBuilder sbNegativeObjects = new StringBuilder();
+        StringBuilder sbNegativeBboxes = new StringBuilder();
         if (negativeBboxes.isEmpty()) {
-            sbNegativeObjects.append("[]");
+            sbNegativeBboxes.append("[]");
         } else {
-            sbNegativeObjects.append("[\n");
+            sbNegativeBboxes.append("[\n");
             int i = 0;
             for (PathObject pathObject : negativeBboxes) {
                 if (pathObject.getROI() instanceof RectangleROI) {
                     if (i++ > 0)
-                        sbNegativeObjects.append(",\n");
+                        sbNegativeBboxes.append(",\n");
                     RectangleROI rectangleROI = (RectangleROI) pathObject.getROI();
-                    sbNegativeObjects
+                    sbNegativeBboxes
                             .append("    PathObjects.createAnnotationObject(\n");
-                    sbNegativeObjects
+                    sbNegativeBboxes
                             .append("        " + Utils.getGroovyScriptForCreateRectangleROI(rectangleROI) + ",\n");
-                    sbNegativeObjects
+                    sbNegativeBboxes
                             .append("        " + Utils.getGroovyScriptForPathClass(pathObject.getPathClass()));
-                    sbNegativeObjects.append("\n");
-                    sbNegativeObjects.append("    ");
-                    sbNegativeObjects.append("),");
-                    sbNegativeObjects.append("\n");
+                    sbNegativeBboxes.append("\n");
+                    sbNegativeBboxes.append("    ");
+                    sbNegativeBboxes.append("),");
+                    sbNegativeBboxes.append("\n");
                 } else {
                     logger.warn("Skipping positive bbox object with unsupported ROI type: {}",
                             pathObject.getROI().getClass());
                 }
             }
-            sbNegativeObjects.append("]");
+            sbNegativeBboxes.append("]");
         }
         final String cmd = String.format("""
-                var positiveObjects = %s
-                var negativeObjects = %s
+                var positiveBboxes = %s
+                var negativeBboxes = %s
                 var task = org.elephant.sam.tasks.SAM3DetectionTask.builder(getCurrentViewer())
                     .server(org.elephant.sam.Utils.createRenderedServer(getCurrentViewer()))
                     .regionRequest(%s)
@@ -1548,10 +1551,13 @@ public class SAMMainCommand implements Runnable {
                     .model(%s)
                     .outputType(%s)
                     .setName(%b)
-                    .setRandomColor(%b)
                     .checkpointUrl("%s")
+                    .setRandomColor(%b)
+                    .textPrompt("%s")
                     .addPositiveBboxes(positiveBboxes)
                     .addNegativeBboxes(negativeBboxes)
+                    .resetPrompts(%b)
+                    .confidenceThresh(%f)
                     .build()
                 task.setOnSucceeded(event -> {
                     List<PathObject> detected = task.getValue()
@@ -1570,16 +1576,19 @@ public class SAMMainCommand implements Runnable {
                 });
                 Platform.runLater(task)
                 """,
-                sbPositiveObjects.toString(),
-                sbNegativeObjects.toString(),
+                sbPositiveBboxes.toString(),
+                sbNegativeBboxes.toString(),
                 Utils.getGroovyScriptForCreateRegionRequest(regionRequest),
                 serverURLProperty.get(),
                 verifySSLProperty.get(),
                 samTypeProperty.get().getFullyQualifiedName(),
                 outputTypeProperty.get().getFullyQualifiedName(),
                 setNamesProperty.get(),
+                selectedWeightsProperty.get().getUrl(),
                 useRandomColorsProperty.get(),
-                selectedWeightsProperty.get().getUrl())
+                textPrompt,
+                resetPromptsProperty.get(),
+                confidenceThreshProperty.get())
                 .strip();
         imageDataProperty.get().getHistoryWorkflow().addStep(
                 new DefaultScriptableWorkflowStep("SAMDetection", cmd));

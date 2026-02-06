@@ -501,6 +501,7 @@ public class Utils {
         }
         StringBuilder sb = new StringBuilder("PathClass.getInstance(");
         sb.append("\"" + pathClass.getName() + "\"");
+        sb.append(")");
         return sb.toString();
     }
 

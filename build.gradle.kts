@@ -11,7 +11,7 @@ plugins {
 qupathExtension {
     name = "qupath-extension-sam"
     group = "org.elephant.sam.qupath"
-    version = "0.8.0"
+    version = "0.9.0"
     description = "QuPath extension for Segment Anything Model (SAM)"
     automaticModule = "org.elephant.sam"
 }

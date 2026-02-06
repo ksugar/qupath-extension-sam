@@ -354,6 +354,9 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 <img src="https://github.com/ksugar/qupath-extension-sam/releases/download/assets/qupath-extension-sam-class-auto-set.gif" width="768">
 
+### Known issues
+- SAM3 video predictor does not work with negative bbox prompts. See https://github.com/facebookresearch/sam3/issues/335.
+
 ## Updates
 
 ### v0.9.0

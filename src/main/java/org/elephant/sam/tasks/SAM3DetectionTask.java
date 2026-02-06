@@ -249,7 +249,7 @@ public class SAM3DetectionTask extends Task<List<PathObject>> {
         private boolean setName = true;
         private String checkpointUrl;
         private boolean resetPrompts = false;
-        private double confidenceThresh = 0.5;
+        private double confidenceThresh = 0.4;
 
         private Builder(QuPathViewer viewer) {
             this.viewer = viewer;

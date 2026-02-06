@@ -65,7 +65,7 @@ public class SAM3PromptParameters {
 		private String textPrompt;
 		private String checkpointUrl;
 		private boolean resetPrompts = false;
-		private double confidenceThresh = 0.5;
+		private double confidenceThresh = 0.4;
 
 		private Builder(final SAMType model) {
 			this.type = model.modelName();

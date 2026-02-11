@@ -622,23 +622,9 @@ public class SAMMainCommand implements Runnable {
         Collection<PathObject> selectedObjects = imageData.getHierarchy().getSelectionModel().getSelectedObjects();
 
         if (getSamTypeProperty().get().isSAM3Compatible()) {
-            String textPrompt = getTextPromptProperty().get();
-            List<PathObject> foregroundObjects = getSAM3ForegroundObjects(selectedObjects);
-            List<PathObject> backgroundObjects = getSAM3BackgroundObjects(selectedObjects);
-            if (textPrompt == null || textPrompt.isBlank() && foregroundObjects.isEmpty()) {
-                updateInfoTextWithError("No text prompt or foreground rectangle rois to use");
-                return;
-            } else {
-                submitSAM3DetectionTask(textPrompt, foregroundObjects, backgroundObjects);
-            }
+            submitSAM3DetectionTask(selectedObjects);
         } else {
-            List<PathObject> foregroundObjects = getForegroundObjects(selectedObjects);
-            List<PathObject> backgroundObjects = getBackgroundObjects(selectedObjects);
-            if (!foregroundObjects.isEmpty()) {
-                submitDetectionTask(foregroundObjects, backgroundObjects);
-            } else {
-                updateInfoText("No foreground objects to use");
-            }
+            submitDetectionTask(selectedObjects);
         }
     }
 
@@ -1271,11 +1257,15 @@ public class SAMMainCommand implements Runnable {
      * @param foregroundObjects
      * @param backgroundObjects
      */
-    private void submitDetectionTask(List<PathObject> foregroundObjects, List<PathObject> backgroundObjects) {
+    private void submitDetectionTask(Collection<PathObject> selectedObjects) {
+        List<PathObject> foregroundObjects = getForegroundObjects(selectedObjects);
         if (foregroundObjects == null || foregroundObjects.isEmpty()) {
             logger.warn("Cannot submit task - foreground objects must not be empty!");
+            updateInfoText("No foreground objects to use");
             return;
         }
+        List<PathObject> backgroundObjects = getBackgroundObjects(
+                qupath.getViewer().getHierarchy().getAnnotationObjects());
         logger.info("Submitting task for {} foreground and {} background objects",
                 foregroundObjects.size(), backgroundObjects.size());
         ImageServer<BufferedImage> renderedServer;
@@ -1428,14 +1418,7 @@ public class SAMMainCommand implements Runnable {
      * @param positiveBboxes
      * @param negativeBboxes
      */
-    private void submitSAM3DetectionTask(String textPrompt, List<PathObject> positiveBboxes,
-            List<PathObject> negativeBboxes) {
-        if (textPrompt == null || textPrompt.isEmpty() && (positiveBboxes == null || positiveBboxes.isEmpty())) {
-            logger.warn("Cannot submit task - text prompt and positive bboxes must not both be empty!");
-            return;
-        }
-        logger.info("Submitting task for {} positive and {} negative bboxes",
-                positiveBboxes.size(), negativeBboxes.size());
+    private void submitSAM3DetectionTask(Collection<PathObject> selectedObjects) {
         ImageServer<BufferedImage> renderedServer;
         try {
             renderedServer = Utils.createRenderedServer(qupath.getViewer());
@@ -1445,6 +1428,29 @@ public class SAMMainCommand implements Runnable {
             return;
         }
         RegionRequest regionRequest = Utils.getViewerRegion(qupath.getViewer(), renderedServer);
+        String textPrompt = getTextPromptProperty().get();
+        // Filter positive and negative bboxes by region request
+        List<PathObject> positiveBboxes = getSAM3ForegroundObjects(selectedObjects).stream()
+                .filter(pathObject -> regionRequest.contains(
+                        (int) pathObject.getROI().getCentroidX(),
+                        (int) pathObject.getROI().getCentroidY(),
+                        qupath.getViewer().getZPosition(),
+                        qupath.getViewer().getTPosition()))
+                .collect(Collectors.toList());
+        List<PathObject> negativeBboxes = getSAM3BackgroundObjects(selectedObjects).stream()
+                .filter(pathObject -> regionRequest.contains(
+                        (int) pathObject.getROI().getCentroidX(),
+                        (int) pathObject.getROI().getCentroidY(),
+                        qupath.getViewer().getZPosition(),
+                        qupath.getViewer().getTPosition()))
+                .collect(Collectors.toList());
+        if (textPrompt == null || textPrompt.isEmpty() && (positiveBboxes == null || positiveBboxes.isEmpty())) {
+            logger.warn("Cannot submit task - text prompt and positive bboxes must not both be empty!");
+            updateInfoText("No text prompt or positive bboxes to use");
+            return;
+        }
+        logger.info("Submitting task for {} positive and {} negative bboxes",
+                positiveBboxes.size(), negativeBboxes.size());
         SAM3DetectionTask task = SAM3DetectionTask.builder(qupath.getViewer())
                 .server(renderedServer)
                 .regionRequest(regionRequest)
@@ -1674,17 +1680,9 @@ public class SAMMainCommand implements Runnable {
         }
         if (liveModeProperty.get()) {
             if (getSamTypeProperty().get().isSAM3Compatible()) {
-                String textPrompt = getTextPromptProperty().get();
-                List<PathObject> foregroundObjects = getSAM3ForegroundObjects(event.getChangedObjects());
-                List<PathObject> backgroundObjects = getSAM3BackgroundObjects(event.getChangedObjects());
-                submitSAM3DetectionTask(textPrompt, foregroundObjects, backgroundObjects);
+                submitSAM3DetectionTask(event.getChangedObjects());
             } else {
-                List<PathObject> foregroundObjects = getForegroundObjects(event.getChangedObjects());
-                if (!foregroundObjects.isEmpty()) {
-                    List<PathObject> backgroundObjects = getBackgroundObjects(
-                            event.getHierarchy().getAnnotationObjects());
-                    submitDetectionTask(foregroundObjects, backgroundObjects);
-                }
+                submitDetectionTask(event.getChangedObjects());
             }
         }
     }

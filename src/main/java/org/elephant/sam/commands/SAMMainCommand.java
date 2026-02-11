@@ -364,7 +364,7 @@ public class SAMMainCommand implements Runnable {
     /**
      * Confidence thresh parameter.
      */
-    private static final double DEFAULT_CONFIDENCE_THRESH = 0.5;
+    private static final double DEFAULT_CONFIDENCE_THRESH = 0.4;
     private final DoubleProperty confidenceThreshProperty = PathPrefs.createPersistentPreference(
             "ext.SAM.autoMask.confidenceThresh", DEFAULT_CONFIDENCE_THRESH);
 

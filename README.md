@@ -1,8 +1,13 @@
 # QuPath extension SAM
 
-### Latest release v0.9.0: Support for SAM3!
+### Latest release v0.9: Support for SAM3!
 
 The extension now supports [SAM3](https://github.com/facebookresearch/segment-anything-3) models for enhanced segmentation and tracking capabilities.
+
+<video controls width="768">
+    <source src="https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/sam3_usage_CMU-1.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
 
 The command history is also now available from `Automate` > `Show workflow command history` and `Automate` > `Create command history script` in the menu bar.
 
@@ -172,7 +177,7 @@ This is a part of the following paper. Please [cite](#citation) it when you use 
 
 ## Install
 
-Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/qupath-extension-sam-0.9.0.jar) to [QuPath](https://qupath.github.io) and restart it.
+Drag and drop [the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.1/qupath-extension-sam-0.9.1.jar) to [QuPath](https://qupath.github.io) and restart it.
 
 Since QuPath v0.5.0, you can install the extension from the extension manager dialog by specifying `Owner` and `Repository` as shown below.
 
@@ -190,7 +195,7 @@ To update the `qupath-extension-sam`, follow the following instructions.
 
 1. Open extensions directory from `Extensions` > `Installed extensions` > `Open extensions directory`
    ![](https://github.com/ksugar/qupath-extension-sam/releases/download/assets/open-extensions-directory.png)
-2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/qupath-extension-sam-0.9.0.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
+2. Replace `qupath-extension-sam-x.y.z.jar` with [the latest version of the extension file](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.1/qupath-extension-sam-0.9.1.jar). If you are using QuPath v0.4.x, you need to install [the extension file for QuPath v0.4.x](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.4.1/qupath-extension-sam-0.4.1.jar), which is now deprecated.
 3. Restart QuPath application.
 
 Please note that you need to also update the [samapi](https://github.com/ksugar/samapi) server.  
@@ -359,6 +364,11 @@ If you select a class in `Auto set` in the Annotations tab, it is used for a new
 
 ## Updates
 
+### v0.9.1
+
+- Enable the confidence threshold setting only for SAM3 models.
+- Accept SAM3 requests without any text or bounding box prompts. This enables the use of SAM3 with a pre-existing inference state. The [samapi](https://github.com/ksugar/samapi) server version must be `v0.7.1` or above.
+ 
 ### v0.9.0
 - Support SAM3 (you need to use the [samapi](https://github.com/ksugar/samapi) server `v0.7.0` or above).
 - Accept server URL without a trailing slash.

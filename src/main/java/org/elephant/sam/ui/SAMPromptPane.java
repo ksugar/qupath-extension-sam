@@ -259,6 +259,7 @@ public class SAMPromptPane extends GridPane {
         Spinner<Double> confidenceThreshSpinner = SAMUIUtils.createDoubleSpinner(
                 0.0, 1.0, command.getConfidenceThreshProperty(), 0.01,
                 "A filtering threshold in [0,1], using the model's predicted mask quality.");
+        confidenceThreshSpinner.disableProperty().bind(isSAM3CompatibleBinding.not());
         GridPane confidenceThreshPane = SAMUIUtils.createColumnPane(
                 new Label("Pred IoU thresh"), confidenceThreshSpinner);
         VBox vbox = new VBox(sam3Label, textPane, cbResetPrompts, confidenceThreshPane);

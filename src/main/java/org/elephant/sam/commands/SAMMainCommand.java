@@ -1444,11 +1444,6 @@ public class SAMMainCommand implements Runnable {
                         qupath.getViewer().getZPosition(),
                         qupath.getViewer().getTPosition()))
                 .collect(Collectors.toList());
-        if (textPrompt == null || textPrompt.isEmpty() && (positiveBboxes == null || positiveBboxes.isEmpty())) {
-            logger.warn("Cannot submit task - text prompt and positive bboxes must not both be empty!");
-            updateInfoText("No text prompt or positive bboxes to use");
-            return;
-        }
         logger.info("Submitting task for {} positive and {} negative bboxes",
                 positiveBboxes.size(), negativeBboxes.size());
         SAM3DetectionTask task = SAM3DetectionTask.builder(qupath.getViewer())

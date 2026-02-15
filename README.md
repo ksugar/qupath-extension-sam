@@ -4,7 +4,8 @@
 
 The extension now supports [SAM3](https://github.com/facebookresearch/segment-anything-3) models for enhanced segmentation and tracking capabilities.
 
-[![SAM3 Demo](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/sam3_usage_CMU-1.png)](https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/sam3_usage_CMU-1.mp4)
+<div><video controls src="https://github.com/ksugar/qupath-extension-sam/releases/download/v0.9.0/sam3_usage_CMU-1.mp4" muted="false"></video></div>
+
 
 The command history is also now available from `Automate` > `Show workflow command history` and `Automate` > `Create command history script` in the menu bar.
 
